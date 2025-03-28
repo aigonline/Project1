@@ -20,6 +20,7 @@ const announcementRoutes = require('./routes/announcementRoutes.js');
 const courseLinkRoutes = require('./routes/courseLinkRoutes.js');
 const app = express();
 
+app.set("trust proxy", 1);
 // Global middleware
 // CORS
 app.use(cors());
