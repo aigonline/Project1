@@ -1,7 +1,7 @@
 // API Service Layer
-const API_BASE_URL = process.env.NODE_ENV === "production"
-  ? "https://project1-1bz0.onrender.com/api/v1"
-  : "http://localhost:5000/api/v1";
+window.location.hostname.includes("localhost")
+  ? "http://localhost:5000/api/v1"
+  : "https://project1-1bz0.onrender.com/api/v1";
 
 // Store the JWT token
 let token = localStorage.getItem('token') || null;
@@ -19,7 +19,7 @@ const fetchWithAuth = async (endpoint, options = {}) => {
         options.headers['Content-Type'] = 'application/json';
     }
     
-    const response = await fetch(`${API_URL}${endpoint}`, options);
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
     
     // Handle 401 Unauthorized
     if (response.status === 401) {
