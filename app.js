@@ -25,16 +25,8 @@ const app = express();
 app.set("trust proxy", true);  // Allows Express to trust reverse proxies
 
 // ✅ Improved CORS configuration
-const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:5000",
-    "https://your-frontend.vercel.app"
-];
+app.use(cors({ origin: "*", credentials: true }));
 
-app.use(cors({
-    origin: allowedOrigins,
-    credentials: true
-}));
 
 // ✅ Security headers
 app.use(helmet());
