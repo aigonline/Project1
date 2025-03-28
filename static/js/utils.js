@@ -1,0 +1,121 @@
+// Format date to readable format
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+// Format time ago (e.g. "2 hours ago")
+function formatTimeAgo(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    let interval = Math.floor(seconds / 31536000);
+    if (interval >= 1) {
+        return interval === 1 ? '1 year ago' : `${interval} years ago`;
+    }
+    
+    interval = Math.floor(seconds / 2592000);
+    if (interval >= 1) {
+        return interval === 1 ? '1 month ago' : `${interval} months ago`;
+    }
+    
+    interval = Math.floor(seconds / 86400);
+    if (interval >= 1) {
+        return interval === 1 ? '1 day ago' : `${interval} days ago`;
+    }
+    
+    interval = Math.floor(seconds / 3600);
+    if (interval >= 1) {
+        return interval === 1 ? '1 hour ago' : `${interval} hours ago`;
+    }
+    
+    interval = Math.floor(seconds / 60);
+    if (interval >= 1) {
+        return interval === 1 ? '1 minute ago' : `${interval} minutes ago`;
+    }
+    
+    return 'Just now';
+}
+
+// Format file size to readable format
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Get current month name and year
+function getCurrentMonth() {
+    return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+}
+
+// Generate calendar days HTML
+function generateCalendarDays(events = []) {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    
+    const startGap = firstDay.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const totalDays = lastDay.getDate();
+    
+    let calendarHTML = '';
+    
+    // Add empty cells for days before the 1st of the month
+    for (let i = 0; i < startGap; i++) {
+        calendarHTML += `<div></div>`;
+    }
+    
+    // Add cells for each day of the month
+    for (let day = 1; day <= totalDays; day++) {
+        const currentDate = new Date(today.getFullYear(), today.getMonth(), day);
+        const isToday = day === today.getDate();
+        
+        // Check if there are events on this day
+        const hasEvent = events.some(event => {
+            const eventDate = new Date(event.dueDate);
+            return eventDate.getDate() === day && 
+                   eventDate.getMonth() === today.getMonth() && 
+                   eventDate.getFullYear() === today.getFullYear();
+        });
+        
+        if (isToday) {
+            calendarHTML += `<div class="h-8 flex items-center justify-center rounded-full bg-primary text-white">${day}</div>`;
+        } else if (hasEvent) {
+            calendarHTML += `<div class="h-8 flex items-center justify-center relative">
+                ${day}
+                <span class="absolute bottom-1 w-1 h-1 rounded-full bg-red-500"></span>
+            </div>`;
+        } else {
+            calendarHTML += `<div class="h-8 flex items-center justify-center">${day}</div>`;
+        }
+    }
+    
+    return calendarHTML;
+}
+
+// Get profile image URL
+function getProfileImageUrl(user) {
+    // Check if user has a profile image
+    if (user && user.profilePicture && !user.profilePicture.includes('default')) {
+        // If the profile picture is a URL, use it directly
+        if (user.profilePicture.startsWith('http')) {
+            return user.profilePicture;
+        }
+        // Otherwise, construct the URL from the API
+        return `${API_URL}/uploads/${user.profilePicture}`;
+    }
+    
+    // Fallback to a default image
+    return `https://picsum.photos/id/${(user?.firstName?.charCodeAt(0) || 0) % 30 + 1000}/100/100`;
+}
+
+// Capitalize first letter
+function capitalizeFirstLetter(string) {
+    if (!string) return '';
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
