@@ -1,8 +1,7 @@
 // API Service Layer
-window.location.hostname.includes("localhost")
-  ? "http://localhost:5000/api/v1"
-  : "https://project1-1bz0.onrender.com/api/v1";
-
+const API_BASE_URL = window.location.hostname.includes("localhost")
+? "http://localhost:5000/api/v1"
+: "https://project1-1bz0.onrender.com/api/v1";
 // Store the JWT token
 let token = localStorage.getItem('token') || null;
 let currentUser = null;
