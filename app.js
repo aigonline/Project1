@@ -23,6 +23,7 @@ const app = express();
 // Global middleware
 // CORS
 app.use(cors());
+app.use(cors({ origin: "https://project1-1bz0.onrender.com"}));
 app.options('*', cors());
 
 
