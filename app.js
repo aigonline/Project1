@@ -22,7 +22,8 @@ const courseLinkRoutes = require("./routes/courseLinkRoutes.js");
 const app = express();
 
 // ✅ Fix for Express proxy & X-Forwarded-For issue
-app.set("trust proxy", true);  // Allows Express to trust reverse proxies
+// Fixes 'trust proxy' misconfiguration
+app.set("trust proxy", "loopback, linklocal, uniquelocal");
 
 // ✅ Improved CORS configuration
 app.use(cors({ origin: "*", credentials: true }));
@@ -53,10 +54,13 @@ if (process.env.NODE_ENV === "development") {
 
 // ✅ Rate limiting (prevents abuse)
 const limiter = rateLimit({
-    max: 100,
-    windowMs: 60 * 60 * 1000, // 1 hour
-    message: "Too many requests from this IP, please try again in an hour!"
+  max: 100, 
+  windowMs: 60 * 60 * 1000, // 1 hour
+  standardHeaders: true, // Sends `RateLimit-*` headers
+  legacyHeaders: false,  // Disables deprecated `X-RateLimit-*` headers
+  message: "Too many requests from this IP, please try again in an hour!"
 });
+
 app.use("/api", limiter);
 
 // ✅ Middleware for parsing JSON & sanitizing data
