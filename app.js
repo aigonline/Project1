@@ -23,9 +23,13 @@ const app = express();
 // Global middleware
 // CORS
 app.use(cors());
-app.use(cors({ origin: "https://project1-1bz0.onrender.com"}));
-app.options('*', cors());
-
+app.use(cors({
+  origin: [
+    "https://project1-1bz0.onrender.com",   // Your backend URL on Render
+    "https://project1-seven-inky.vercel.app" // Your frontend URL on Vercel
+  ],
+  credentials: true
+}));
 
 app.use(express.static('public'));  // Or your actual static files directory
 app.use('/static', express.static(path.join(__dirname, 'static')));
