@@ -1062,21 +1062,27 @@ function showEditAssignmentModal(assignment) {
         showAssignmentModal(assignment._id);
     });
     
-    document.getElementById('deleteAssignmentBtn').addEventListener('click', () => {
+    document.getElementById('deleteAssignmentBtn').addEventListener('click', async () => {
         if (confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) {
-            // In a real app, this would call an API to delete the assignment
-            // For now, just show a toast and close the modal
+          try {
+            // Call the API to delete the assignment
+            await assignmentService.deleteAssignment(assignment._id);
             showToast('Assignment deleted successfully!');
+            // Remove the modal from the DOM
             document.body.removeChild(modalContainer);
-            // Reload the assignments view
+            // Optionally, refresh the assignments view
             loadView('assignments');
+          } catch (error) {
+            console.error('Error deleting assignment:', error);
+            showToast(`Failed to delete assignment: ${error.message}`, 'error');
+          }
         }
-    });
+      });
+      
     
     // Form submission
     document.getElementById('editAssignmentForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
         // Get form values
         const title = document.getElementById('assignmentTitle').value;
         const description = document.getElementById('assignmentDescription').value;
@@ -1085,14 +1091,32 @@ function showEditAssignmentModal(assignment) {
         const submissionType = document.getElementById('assignmentSubmissionType').value;
         const allowLateSubmissions = document.getElementById('assignmentAllowLate').checked;
         
-        // In a real app, this would call an API to update the assignment
-        // For demo purposes, we'll just show a toast and close the modal
-        showToast('Assignment updated successfully!');
-        document.body.removeChild(modalContainer);
-        
-        // Reload the assignments view
-        loadView('assignments');
-    });
+        // Create the data object to update
+        const assignmentData = {
+          title,
+          description,
+          dueDate,
+          pointsPossible,
+          submissionType,
+          allowLateSubmissions
+        };
+      
+        try {
+          // Call  API to update the assignment.
+          // Make sure assignmentId is defined in the current scope (passed in from the modal, for example)
+          await assignmentService.updateAssignment(assignment._id, assignmentData);
+          
+          showToast('Assignment updated successfully!');
+          document.body.removeChild(modalContainer);
+          
+          // Reload the assignments view to reflect the changes.
+          loadView('assignments');
+        } catch (error) {
+          console.error('Error updating assignment:', error);
+          showToast(`Failed to update assignment: ${error.message}`, 'error');
+        }
+      });
+      
 }
 // Get submission form HTML
 function getSubmissionForm(assignment) {
@@ -1127,120 +1151,276 @@ function getSubmissionForm(assignment) {
 }
 
 // Show upload resource modal
-function showUploadResourceModal() {
-    const modalHtml = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">Upload Resource</h3>
-                    <button id="closeUploadModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <form id="uploadResourceForm" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Title</label>
-                        <input type="text" id="resourceTitle" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                        <textarea id="resourceDescription" rows="2" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Type</label>
-                        <select id="resourceType" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                            <option value="PDF">PDF</option>
-                            <option value="PPT">PowerPoint</option>
-                            <option value="DOC">Document</option>
-                            <option value="Video">Video</option>
-                            <option value="Link">Web Link</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div id="fileUploadSection">
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">File</label>
-                        <input type="file" id="resourceFile" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                    </div>
-                    <div id="linkSection" class="hidden">
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">URL</label>
-                        <input type="url" id="resourceLink" placeholder="https://example.com" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                    </div>
-                    <div id="uploadError" class="text-red-500 hidden"></div>
-                    <div>
-                        <button type="submit" class="w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                            Upload Resource
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
-    
-    const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalHtml;
-    document.body.appendChild(modalContainer);
-    
-    // Setup event listeners
-    document.getElementById('closeUploadModal').addEventListener('click', () => {
-        document.body.removeChild(modalContainer);
-    });
-    
-    // Toggle file/link sections based on type
-    document.getElementById('resourceType').addEventListener('change', (e) => {
-        const isLink = e.target.value === 'Link';
-        document.getElementById('fileUploadSection').classList.toggle('hidden', isLink);
-        document.getElementById('linkSection').classList.toggle('hidden', !isLink);
-    });
-    
-    // Handle form submission
-    document.getElementById('uploadResourceForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
+async function showUploadResourceModal(courseId) {
+    try {
+        // Use provided courseId or fall back to the current course if available
+        courseId = courseId || (currentCourse ? currentCourse._id : null);
         
-        const title = document.getElementById('resourceTitle').value;
-        const description = document.getElementById('resourceDescription').value;
-        const type = document.getElementById('resourceType').value;
-        const isLink = type === 'Link';
+        // If no course ID is available, we need to let the user select a course
+        let userCourses = [];
+        let selectedCourseId = courseId;
         
-        try {
-            if (isLink) {
-                // Handle link resource
-                const link = document.getElementById('resourceLink').value;
-                if (!link) throw new Error('Please enter a valid URL');
+        if (!courseId) {
+            try {
+                // Get courses where user is instructor
+                const coursesResponse = await courseService.getMyCourses();
+                userCourses = coursesResponse.data.courses.filter(course => 
+                    (currentUser.role === 'admin') || 
+                    (course.instructor === currentUser._id) ||
+                    (typeof course.instructor === 'object' && course.instructor._id === currentUser._id)
+                );
                 
-                await resourceService.uploadResource({
-                    title,
-                    description,
-                    type,
-                    link,
-                    course: currentCourse._id
-                });
-            } else {
-                // Handle file resource
-                const fileInput = document.getElementById('resourceFile');
-                if (!fileInput.files || fileInput.files.length === 0) {
-                    throw new Error('Please select a file to upload');
+                if (userCourses.length === 0) {
+                    showToast('You do not have any courses where you can upload resources.', 'error');
+                    return;
                 }
                 
-                const formData = new FormData();
-                formData.append('title', title);
-                formData.append('description', description);
-                formData.append('type', type);
-                formData.append('course', currentCourse._id);
-                formData.append('file', fileInput.files[0]);
-                
-                await resourceService.uploadResource(formData);
+                // Default to the first course
+                selectedCourseId = userCourses[0]._id;
+            } catch (error) {
+                console.error('Error fetching courses:', error);
+                showToast('Failed to load your courses. Please try again.', 'error');
+                return;
+            }
+        }
+        
+        // Create and show modal
+        const modalHtml = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Upload Resource</h3>
+                        <button id="closeResourceModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <form id="resourceUploadForm" class="space-y-4">
+                        ${!courseId ? `
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Course</label>
+                                <select id="resourceCourse" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    ${userCourses.map(course => `
+                                        <option value="${course._id}">${course.name} (${course.code})</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                        ` : ''}
+                        
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Title <span class="text-red-500">*</span></label>
+                            <input type="text" id="resourceTitle" required placeholder="Enter a title for this resource" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                            <textarea id="resourceDescription" rows="3" placeholder="Describe what this resource contains or how students should use it" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Type <span class="text-red-500">*</span></label>
+                                <select id="resourceType" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="">-- Select Resource Type --</option>
+                                    <option value="file">File Upload</option>
+                                    <option value="link">External Link</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                                <select id="resourceCategory" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="lecture">Lecture Materials</option>
+                                    <option value="reading">Reading Materials</option>
+                                    <option value="exercise">Practice Exercises</option>
+                                    <option value="assignment">Assignment Materials</option>
+                                    <option value="reference">Reference Materials</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- File upload section (initially hidden) -->
+                        <div id="fileUploadSection" class="hidden">
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Upload File <span class="text-red-500">*</span></label>
+                            <input type="file" id="resourceFile" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Maximum file size: 10MB. Supported formats: PDF, DOCX, PPTX, XLSX, ZIP, MP4, JPG, PNG
+                            </p>
+                        </div>
+                        
+                        <!-- Link section (initially hidden) -->
+                        <div id="linkSection" class="hidden">
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">External URL <span class="text-red-500">*</span></label>
+                            <input type="url" id="resourceLink" placeholder="https://example.com/resource" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Visibility</label>
+                            <select id="resourceVisibility" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                <option value="true">Visible to Students</option>
+                                <option value="false">Hidden from Students</option>
+                            </select>
+                        </div>
+                        
+                        <div id="resourceError" class="text-red-500 hidden"></div>
+                        
+                        <div class="flex justify-end pt-2">
+                            <button type="button" id="cancelResourceBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                                Cancel
+                            </button>
+                            <button type="submit" id="uploadResourceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                Upload Resource
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to DOM
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+        
+        // Set up event listeners
+        
+        // Close modal
+        document.getElementById('closeResourceModal').addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+        });
+        
+        document.getElementById('cancelResourceBtn').addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+        });
+        
+        // Handle resource type selection
+        const resourceType = document.getElementById('resourceType');
+        resourceType.addEventListener('change', (e) => {
+            // Hide all resource sections
+            document.getElementById('fileUploadSection').classList.add('hidden');
+            document.getElementById('linkSection').classList.add('hidden');
+            
+            // Show the selected section
+            const selectedType = e.target.value;
+            if (selectedType === 'file') {
+                document.getElementById('fileUploadSection').classList.remove('hidden');
+            } else if (selectedType === 'link') {
+                document.getElementById('linkSection').classList.remove('hidden');
+            }
+        });
+        
+        // Handle form submission
+        document.getElementById('resourceUploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const errorDiv = document.getElementById('resourceError');
+            errorDiv.classList.add('hidden');
+            
+            // Get the selected course ID
+            const targetCourseId = courseId || document.getElementById('resourceCourse')?.value;
+            if (!targetCourseId) {
+                errorDiv.textContent = 'Please select a course.';
+                errorDiv.classList.remove('hidden');
+                return;
             }
             
-            document.body.removeChild(modalContainer);
-            showToast('Resource uploaded successfully!');
-            loadView('course-detail', { courseId: currentCourse._id });
-        } catch (error) {
-            const errorDiv = document.getElementById('uploadError');
-            errorDiv.textContent = error.message || 'Failed to upload resource';
-            errorDiv.classList.remove('hidden');
-        }
-    });
-}
+            // Get common resource data
+            const title = document.getElementById('resourceTitle').value;
+            const description = document.getElementById('resourceDescription').value;
+            const category = document.getElementById('resourceCategory').value;
+            const isVisible = document.getElementById('resourceVisibility').value === 'true';
+            
+            // Validate required fields
+            const selectedType = resourceType.value;
+            if (!selectedType) {
+                errorDiv.textContent = 'Please select a resource type.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Prepare form data (for both file and link resources)
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('description', description);
+            formData.append('category', category);
+            formData.append('isVisible', isVisible);
+            
+            // Handle resource type-specific data and validation
+            if (selectedType === 'file') {
+                const fileInput = document.getElementById('resourceFile');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    errorDiv.textContent = 'Please select a file to upload.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Check file size (10MB max)
+                const file = fileInput.files[0];
+                if (file.size > 10 * 1024 * 1024) { // 10MB in bytes
+                    errorDiv.textContent = 'File size exceeds the 10MB limit.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Add file to formData
+                formData.append('file', file);
+                
+            } else if (selectedType === 'link') {
+                const link = document.getElementById('resourceLink').value;
+                if (!link) {
+                    errorDiv.textContent = 'Please enter a valid URL.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Validate URL format
+                try {
+                    new URL(link); // Will throw if invalid
+                    formData.append('link', link);
+                } catch (error) {
+                    errorDiv.textContent = 'Please enter a valid URL (include http:// or https://).';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+            }
+            
+            // Update button state
+            const uploadBtn = document.getElementById('uploadResourceBtn');
+            const originalBtnText = uploadBtn.innerHTML;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
+            
+            try {
+                // Call the API to create the resource - pass the courseId in the URL parameter
+                await resourceService.createResource(targetCourseId, formData);
+                
+                // Close modal
+                document.body.removeChild(modalContainer);
+                
+                // Show success message
+                showToast('Resource uploaded successfully!');
+                
+                // Refresh the course resources if we're in a course detail view
+                if (currentView === 'course-detail' && currentCourse) {
+                    loadCourseDetail(currentCourse._id);
+                }
+            } catch (error) {
+                console.error('Error uploading resource:', error);
+                errorDiv.textContent = error.message || 'Failed to upload resource. Please try again.';
+                errorDiv.classList.remove('hidden');
+                
+                // Reset button state
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalBtnText;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error showing upload resource modal:', error);
+        showToast('An error occurred. Please try again.', 'error');
+    }
+}    
 
 // View resource
 function viewResource(resourceId) {
@@ -1432,107 +1612,165 @@ function showNewAnnouncementModal() {
 
 
 // Show create assignment modal
-function showCreateAssignmentModal() {
+async function showCreateAssignmentModal() {
+    let courses = [];
+    if (currentUser.role === 'instructor') {
+      try {
+        const response = await courseService.getMyCourses();
+        courses = response.data.courses;
+      } catch (error) {
+        console.error("Error fetching courses for assignment modal:", error);
+      }
+    }
+  
     const modalHtml = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">Create New Assignment</h3>
-                    <button id="closeAssignmentModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                
-                <form id="createAssignmentForm" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Assignment Title</label>
-                        <input type="text" id="assignmentTitle" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Instructions</label>
-                        <textarea id="assignmentDescription" rows="5" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Due Date</label>
-                            <input type="datetime-local" id="assignmentDueDate" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Points Possible</label>
-                            <input type="number" id="assignmentPoints" value="100" min="0" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Submission Type</label>
-                            <select id="assignmentSubmissionType" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                <option value="both">Text and File Upload</option>
-                                <option value="text">Text Only</option>
-                                <option value="file">File Upload Only</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="assignmentAllowLate" class="mr-2">
-                            <label for="assignmentAllowLate" class="text-gray-700 dark:text-gray-300">Allow late submissions</label>
-                        </div>
-                    </div>
-                    
-                    <div id="assignmentError" class="text-red-500 hidden"></div>
-                    
-                    <div>
-                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                            Create Assignment
-                        </button>
-                    </div>
-                </form>
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold">Create New Assignment</h3>
+            <button id="closeAssignmentModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <form id="createAssignmentForm" class="space-y-4">
+            <div>
+              <label class="block text-gray-700 dark:text-gray-300 mb-2">Assignment Title</label>
+              <input type="text" id="assignmentTitle" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
             </div>
+            
+            <div>
+              <label class="block text-gray-700 dark:text-gray-300 mb-2">Instructions</label>
+              <textarea id="assignmentDescription" rows="5" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
+            </div>
+
+            <!-- Course selection for instructors -->
+            ${currentUser.role === 'instructor' ? `
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 mb-2">Select Course</label>
+                <select id="assignmentCourse" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                  <option value="">Select a course</option>
+                  ${courses.map(course => `<option value="${course._id}">${course.name} (${course.code})</option>`).join('')}
+                </select>
+              </div>
+            ` : ''}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 mb-2">Due Date</label>
+                <input type="datetime-local" id="assignmentDueDate" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+              </div>
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 mb-2">Points Possible</label>
+                <input type="number" id="assignmentPoints" value="100" min="0" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-gray-700 dark:text-gray-300 mb-2">Submission Type</label>
+                <select id="assignmentSubmissionType" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                  <option value="both">Text and File Upload</option>
+                  <option value="text">Text Only</option>
+                  <option value="file">File Upload Only</option>
+                </select>
+              </div>
+              <div class="flex items-center">
+                <input type="checkbox" id="assignmentAllowLate" class="mr-2">
+                <label for="assignmentAllowLate" class="text-gray-700 dark:text-gray-300">Allow late submissions</label>
+              </div>
+            </div>
+            
+            <div id="assignmentError" class="text-red-500 hidden"></div>
+            
+            <div>
+              <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                Create Assignment
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
     `;
     
-    // Add modal to the document
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
     
-    // Setup event listeners
+    // Close modal
     document.getElementById('closeAssignmentModal').addEventListener('click', () => {
-        document.body.removeChild(modalContainer);
+      document.body.removeChild(modalContainer);
     });
     
-    // Default due date to 1 week from now
+    // Set default due date to 1 week from now
     const defaultDueDate = new Date();
     defaultDueDate.setDate(defaultDueDate.getDate() + 7);
     document.getElementById('assignmentDueDate').value = defaultDueDate.toISOString().slice(0, 16);
     
+    // Pre-select course if currentCourse is defined (for instructors)
+    if (currentUser.role === 'instructor' && currentCourse) {
+      const courseSelect = document.getElementById('assignmentCourse');
+      if (courseSelect) {
+        const optionToSelect = Array.from(courseSelect.options).find(opt => opt.value === currentCourse._id);
+        if (optionToSelect) {
+          optionToSelect.selected = true;
+        }
+      }
+    }
+    
     // Setup form submission
     document.getElementById('createAssignmentForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        try {
-            const assignmentData = {
-                title: document.getElementById('assignmentTitle').value,
-                description: document.getElementById('assignmentDescription').value,
-                dueDate: document.getElementById('assignmentDueDate').value,
-                pointsPossible: parseInt(document.getElementById('assignmentPoints').value),
-                submissionType: document.getElementById('assignmentSubmissionType').value,
-                allowLateSubmissions: document.getElementById('assignmentAllowLate').checked,
-                course: currentCourse._id
-            };
-            
-            await assignmentService.createAssignment(assignmentData);
-            document.body.removeChild(modalContainer);
-            showToast('Assignment created successfully!');
-            loadView('course-detail', { courseId: currentCourse._id });
-        } catch (error) {
-            const errorDiv = document.getElementById('assignmentError');
-            errorDiv.textContent = error.message;
-            errorDiv.classList.remove('hidden');
+      e.preventDefault();
+      
+      // Determine the course ID to use
+      let courseId;
+      if (currentUser.role === 'instructor') {
+        const courseSelect = document.getElementById('assignmentCourse');
+        if (courseSelect && courseSelect.value) {
+          courseId = courseSelect.value;
+        } else if (currentCourse && currentCourse._id) {
+          courseId = currentCourse._id;
+        } else {
+          const errorDiv = document.getElementById('assignmentError');
+          errorDiv.textContent = "No course selected for assignment creation.";
+          errorDiv.classList.remove('hidden');
+          return;
         }
+      } else {
+        // For students, currentCourse should exist
+        if (currentCourse && currentCourse._id) {
+          courseId = currentCourse._id;
+        } else {
+          const errorDiv = document.getElementById('assignmentError');
+          errorDiv.textContent = "No course context available.";
+          errorDiv.classList.remove('hidden');
+          return;
+        }
+      }
+      
+      try {
+        const assignmentData = {
+          title: document.getElementById('assignmentTitle').value,
+          description: document.getElementById('assignmentDescription').value,
+          dueDate: document.getElementById('assignmentDueDate').value,
+          pointsPossible: parseInt(document.getElementById('assignmentPoints').value),
+          submissionType: document.getElementById('assignmentSubmissionType').value,
+          allowLateSubmissions: document.getElementById('assignmentAllowLate').checked,
+          course: courseId
+        };
+        
+        await assignmentService.createAssignment(assignmentData);
+        document.body.removeChild(modalContainer);
+        showToast('Assignment created successfully!');
+        loadView('course-detail', { courseId: assignmentData.course });
+      } catch (error) {
+        const errorDiv = document.getElementById('assignmentError');
+        errorDiv.textContent = error.message;
+        errorDiv.classList.remove('hidden');
+      }
     });
-}
+  }
+  
 document.addEventListener("DOMContentLoaded", () => {
     const logoutBtn = document.getElementById("logoutBtn");
 

@@ -996,12 +996,16 @@ async function loadResources() {
             <div class="flex flex-wrap justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">Resources</h2>
                 <div class="mt-2 sm:mt-0 flex flex-wrap gap-2">
+                
                     <div class="relative">
                         <input type="text" id="searchResources" placeholder="Search resources..." class="pl-10 pr-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-3">
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
                     </div>
+                    <button id="uploadResourceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            <i class="fas fa-plus mr-1"></i> New Resource
+                        </button>
                 </div>
             </div>
             
@@ -1015,7 +1019,6 @@ async function loadResources() {
                                 <button class="resource-filter-btn px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm" data-filter="videos">Videos</button>
                                 <button class="resource-filter-btn px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm" data-filter="myuploads">My Uploads</button>
                             </div>
-                            
                             <div class="flex flex-wrap gap-2">
                                 <select id="courseFilter" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-800">
                                     <option value="all">All Courses</option>
@@ -1204,7 +1207,10 @@ async function loadResources() {
         }
         
         // Setup event listeners
-        
+        const uploadResourceBtn = document.getElementById('uploadResourceBtn');
+        if (uploadResourceBtn) {
+            uploadResourceBtn.addEventListener('click', () => showUploadResourceModal());
+        }
         const uploadFirstResourceBtn = document.getElementById('uploadFirstResourceBtn');
         if (uploadFirstResourceBtn) {
             uploadFirstResourceBtn.addEventListener('click', () => showUploadResourceModal());
@@ -1421,6 +1427,9 @@ async function loadDiscussions() {
                             <i class="fas fa-search text-gray-400"></i>
                         </div>
                     </div>
+                    <button id="newDscussionBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            <i class="fas fa-plus mr-1"></i>  Start New Discussion
+                    </button>
                 </div>
             </div>
             
@@ -1641,7 +1650,8 @@ async function loadDiscussions() {
                 item.style.display = (item.classList.contains('hidden') || item.classList.contains('hidden-by-course')) ? 'none' : '';
             });
         }
-        
+        const newDiscussionBtn = document.getElementById('newDscussionBtn');
+        if (newDiscussionBtn) { addEventListener('click', () => showNewDiscussionModal()); }
         // Sort dropdown
         const discussionSort = document.getElementById('discussionSort');
         if (discussionSort) {
@@ -1832,7 +1842,6 @@ function showNewDiscussionModal() {
 
 
 // Assignments view
-// Assignments view with proper categorization for both roles
 async function loadAssignments() {
     try {
         // Fetch all assignments

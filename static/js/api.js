@@ -1,5 +1,5 @@
 // API Service Layer
-const API_BASE_URL = window.location.hostname.includes("localhost")
+const API_BASE_URL = window.location.hostname.includes("127.0.0.1")
 ? "http://localhost:5000/api/v1"
 : "https://project1-1bz0.onrender.com/api/v1";
 // Store the JWT token
@@ -20,6 +20,9 @@ const fetchWithAuth = async (endpoint, options = {}) => {
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
     
+    // If no content (204), return an empty object
+    if (response.status === 204) return {};
+
     // Handle 401 Unauthorized
     if (response.status === 401) {
         // Clear token and redirect to login
@@ -136,7 +139,17 @@ const assignmentService = {
             body: JSON.stringify(assignmentData)
         });
     },
-    
+    deleteAssignment: async (assignmentId) => {
+        return await fetchWithAuth(`/assignments/${assignmentId}`, {
+            method: 'DELETE'
+        });
+    },
+    updateAssignment: async (assignmentId, assignmentData) => {
+        return await fetchWithAuth(`/assignments/${assignmentId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(assignmentData)
+        });
+    },
     submitAssignment: async (assignmentId, formData) => {
         // For file uploads, use FormData instead of JSON
         return await fetch(`${API_URL}/assignments/${assignmentId}/submit`, {
@@ -164,10 +177,18 @@ const assignmentService = {
             body: JSON.stringify(gradeData)
         });
     }
+    
 };
 
 // Resources service
 const resourceService = {
+    createResource: async (courseId, resourceData) => {
+        return await fetchWithAuth(`/courses/${courseId}/resources`, {
+            method: 'POST',
+            body: resourceData // Using FormData directly
+            // No Content-Type header - browser sets this automatically for FormData
+        });
+    },
     getCourseResources: async (courseId) => {
         return await fetchWithAuth(`/courses/${courseId}/resources`);
     },
@@ -186,25 +207,10 @@ const resourceService = {
         return await fetchWithAuth('/resources/my-resources'); // Fetch only the user's resources
     },
     togglePin: async (id) => {
-            return await fetchWithAuth(`/resources/${resourceId}/pin`, {
+            return await fetchWithAuth(`/resources/${id}/pin`, {
                 method: 'PATCH'
             });
         },
-    uploadResource: async (formData) => {
-        return await fetch(`${API_URL}/resources`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`
-            },
-            body: formData
-        }).then(async res => {
-            if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.message || 'Failed to upload resource');
-            }
-            return res.json();
-        });
-    },
     deleteResource: async (id) => {
         return await fetchWithAuth(`/resources/${id}`, {
             method: 'DELETE'

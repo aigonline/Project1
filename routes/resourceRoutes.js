@@ -11,7 +11,7 @@ router.use(protect);
 router.get('courses/:courseId/resources', resourceController.getCourseResources);
 // Get resources by type
 router.get('/type/:type', resourceController.getResourcesByType);
-
+router.post('/', resourceController.createResource);
 router.get('/popular', resourceController.getPopularResources);
 // Get resources uploaded by current user
 router.get('/my-resources', resourceController.getMyResources);

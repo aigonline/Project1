@@ -162,7 +162,6 @@ exports.deleteDiscussion = catchAsync(async (req, res, next) => {
 
   await Discussion.findByIdAndDelete(req.params.id);
   
-  // ✅ Send a proper JSON response
   res.status(200).json({
     status: 'success',
     message: 'Discussion deleted successfully'

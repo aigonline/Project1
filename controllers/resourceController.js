@@ -28,7 +28,7 @@ exports.getAllResources = catchAsync(async (req, res, next) => {
 });
 
 // Get resources by course
-// Get resources for a specific course
+
 exports.getCourseResources = catchAsync(async (req, res, next) => {
   const { courseId } = req.params;
 
@@ -71,9 +71,9 @@ exports.getResource = catchAsync(async (req, res, next) => {
 
 // Create new resource
 exports.createResource = catchAsync(async (req, res, next) => {
+  const { courseId } = req.params;
   // Check if the course exists
-  const course = await Course.findById(req.body.course);
-  
+  const course = await Course.findById(courseId);
   if (!course) {
     return next(new AppError('No course found with that ID', 404));
   }
@@ -81,18 +81,30 @@ exports.createResource = catchAsync(async (req, res, next) => {
   // Set user as the resource creator
   req.body.addedBy = req.user.id;
   
-  // Handle file upload
+  // Determine if a file was uploaded or a link was provided
   if (req.file) {
+    // File resource: attach file details
     req.body.file = {
       fileName: req.file.originalname,
       filePath: req.file.path,
       fileType: req.file.mimetype,
       fileSize: req.file.size
     };
+  } else if (req.body.link) {
+    // Link resource: validate URL
+    if (!validator.isURL(req.body.link)) {
+      return next(new AppError('Invalid URL provided', 400));
+    }
+    // If a valid link is provided, ensure file field is not set
+    req.body.link = req.body.link;
+  } else {
+    // If neither file nor link is provided, return an error
+    return next(new AppError('Please provide either a file or a link for the resource', 400));
   }
-
+  
+  // Create the resource in the database
   const newResource = await Resource.create(req.body);
-
+  
   res.status(201).json({
     status: 'success',
     data: {
@@ -100,7 +112,6 @@ exports.createResource = catchAsync(async (req, res, next) => {
     }
   });
 });
-
 // Update resource
 exports.updateResource = catchAsync(async (req, res, next) => {
   const resource = await Resource.findById(req.params.id);
