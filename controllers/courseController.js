@@ -3,7 +3,7 @@ const User = require('../models/user.js');
 const catchAsync = require('../utils/catchAsync.js');
 const AppError = require('../utils/appError.js');
 const APIFeatures = require('../utils/apiFeatures.js');
-
+const mongoose = require('mongoose');
 // Get all courses
 exports.getAllCourses = catchAsync(async (req, res, next) => {
     const features = new APIFeatures(Course.find(), req.query)
@@ -72,13 +72,17 @@ exports.createCourse = catchAsync(async (req, res, next) => {
 
 // Update course details
 exports.updateCourse = catchAsync(async (req, res, next) => {
-    const { id } = req.params;
-    
-    // Get the course
-    const course = await Course.findById(id);
-    if (!course) {
-      return next(new AppError('No course found with that ID', 404));
+    // Validate ObjectId format to prevent unnecessary database lookup
+  // Get the course
+    const { courseId } = req.params;
+    console.log('Received ID:', courseId); // Log the ID to see its exact value
+    if (!mongoose.Types.ObjectId.isValid(courseId)) {
+        return next(new AppError('Invalid course ID format', 400));
     }
+  const course = await Course.findById(courseId);
+  if (!course) {
+    return next(new AppError('No course found with that ID', 404));
+  }
     
     // Check if user is authorized (instructor or admin)
     if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
@@ -105,13 +109,14 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
     });
     
     // Update the course
-    const updatedCourse = await Course.findByIdAndUpdate(id, filteredBody, {
+    const updatedCourse = await Course.findByIdAndUpdate(courseId, filteredBody, {
       new: true,
       runValidators: true
     });
     
     res.status(200).json({
       status: 'success',
+      message: 'Course updated successfully',
       data: {
         course: updatedCourse
       }

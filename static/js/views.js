@@ -1384,8 +1384,8 @@ async function loadCourseDetail(courseId) {
                                 <div>
                                     <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Enrollment Code</h3>
                                     <div class="flex items-center">
-                                        <input type="text" value="${course.enrollmentKey}" readonly class="bg-gray-50 dark:bg-gray-700 text-sm p-1 rounded border border-gray-300 dark:border-gray-600 mr-2">
-                                        <button id="copyEnrollmentCodeBtn" class="text-primary dark:text-primaryLight" onclick="copyToClipboard('${course.enrollmentKey}')">
+                                        <input type="text" value="${course.enrollmentCode}" readonly class="bg-gray-50 dark:bg-gray-700 text-sm p-1 rounded border border-gray-300 dark:border-gray-600 mr-2">
+                                        <button id="copyEnrollmentCodeBtn" class="text-primary dark:text-primaryLight" onclick="copyToClipboard('${course.enrollmentCode}')">
                                             <i class="fas fa-copy"></i>
                                         </button>
                                     </div>
