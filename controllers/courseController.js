@@ -246,10 +246,10 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
 
 // Enroll in course
 exports.enrollInCourse = catchAsync(async (req, res, next) => {
-    const { courseId, enrollmentKey } = req.body;
+    const { courseId, enrollmentCode } = req.body;
 
     // Fetch course and ensure students is an array
-    const course = await Course.findById(courseId).select("+enrollmentKey students");
+    const course = await Course.findById(courseId).select("+enrollmentCode students");
 
     if (!course) {
         return next(new AppError("No course found with that ID", 404));
@@ -260,7 +260,7 @@ exports.enrollInCourse = catchAsync(async (req, res, next) => {
     }
 
     // Verify enrollment key if required
-    if (course.enrollmentKey && course.enrollmentKey !== enrollmentKey) {
+    if (course.enrollmentCode && course.enrollmentCode !== enrollmentCode) {
         return next(new AppError("Invalid enrollment key", 401));
     }
 

@@ -98,11 +98,12 @@ const courseService = {
         });
     },
 
-    enrollInCourse: async (courseId, enrollmentKey) => {
-        console.log("📌 Enrolling in course with ID:", courseId); // ✅ Debugging log
-        return await fetchWithAuth('/courses/enroll', { 
+    enrollInCourse: async (enrollmentData) => {
+        const { courseId, enrollmentCode } = enrollmentData;
+        console.log("📌 Enrolling in course with ID:", courseId);
+        return await fetchWithAuth('/courses/enroll', {
             method: 'POST',
-            body: JSON.stringify({ courseId, enrollmentKey }),
+            body: JSON.stringify({ courseId, enrollmentCode }),
         });
     },
     // Update course
