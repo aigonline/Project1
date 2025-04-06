@@ -184,379 +184,951 @@ function loadSignupPage() {
 }
 
 // Dashboard view
+/**
+ * Load dashboard view with courses, upcoming assignments and recent discussions
+ * @returns {Promise<void>}
+ */
 async function loadDashboard() {
-    // Fetch data
-    
-    const coursesResponse = await courseService.getMyCourses();
-    const courses = coursesResponse.data.courses;
-    
-    let upcomingAssignments = [];
-    let recentDiscussions = [];
-    
     try {
-        // Get assignments
-        const assignmentsResponse = await assignmentService.getAllAssignments();
-        upcomingAssignments = assignmentsResponse.data.assignments
-            .filter(a => new Date(a.dueDate) >= new Date())
-            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-            .slice(0, 3);
+        // Show loading state
+        content.innerHTML = `
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
         
-        // Get discussions
-        const discussionsResponse = await discussionService.getAllDiscussions();
-        recentDiscussions = discussionsResponse.data.discussions
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 3);
-    } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-    }
-    
-    content.innerHTML = `
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2">
-                <h2 class="text-2xl font-bold mb-4">Dashboard</h2>
+        // Fetch user's courses
+        const coursesResponse = await courseService.getMyCourses();
+        const courses = coursesResponse.data.courses;
+        
+        // Initialize arrays for assignments and discussions
+        let upcomingAssignments = [];
+        let recentDiscussions = [];
+        
+        // Only proceed if user has courses
+        if (courses.length > 0) {
+            // Fetch upcoming assignments
+            try {
+                const assignmentsResponse = await assignmentService.getAllAssignments();
+                const allAssignments = assignmentsResponse.data.assignments;
                 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
-                    <h3 class="text-lg font-semibold mb-3">Upcoming Assignments</h3>
-                    ${upcomingAssignments.length > 0 ? `
-                        <div class="divide-y divide-gray-200 dark:divide-gray-700">
-                            ${upcomingAssignments.map(assignment => {
-                                const course = assignment.course;
-                                const daysLeft = Math.ceil((new Date(assignment.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
-                                let statusClass = '';
-                                
-                                if (daysLeft <= 1) statusClass = 'text-red-500';
-                                else if (daysLeft <= 3) statusClass = 'text-yellow-500';
-                                
-                                return `
-                                    <div class="py-3 flex justify-between items-center">
-                                        <div>
-                                            <p class="font-medium">${assignment.title}</p>
-                                            <p class="text-sm text-gray-500 dark:text-gray-400">${course.name} (${course.code})</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="${statusClass} font-medium">Due: ${formatDate(assignment.dueDate)}</p>
-                                            <p class="text-sm text-gray-500 dark:text-gray-400">${daysLeft} days left</p>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                        <a href="#" class="block mt-3 text-primary dark:text-primaryLight text-sm font-medium" onclick="loadView('assignments'); return false;">
-                            View all assignments →
-                        </a>
-                    ` : `
-                        <p class="text-gray-500 dark:text-gray-400">No upcoming assignments.</p>
-                    `}
+                // Filter assignments:
+                // 1. Only from user's courses
+                // 2. Due date is in the future
+                // 3. Not already submitted (for students)
+                upcomingAssignments = allAssignments.filter(assignment => {
+                    // Check if assignment belongs to one of user's courses
+                    const courseMatch = courses.some(course => 
+                        (typeof assignment.course === 'object' && assignment.course._id === course._id) ||
+                        assignment.course === course._id
+                    );
+                    
+                    // For due date, compare with current date
+                    const dueDate = new Date(assignment.dueDate);
+                    const now = new Date();
+                    const isUpcoming = dueDate > now;
+                    
+                    // If student, check if already submitted
+                    let notSubmitted = true;
+                    if (currentUser.role === 'student' && assignment.submissions) {
+                        // Check if this student has already submitted
+                        notSubmitted = !assignment.submissions.some(submission => 
+                            (typeof submission.student === 'object' && submission.student._id === currentUser._id) || 
+                            submission.student === currentUser._id
+                        );
+                    }
+                    
+                    return courseMatch && isUpcoming && (currentUser.role !== 'student' || notSubmitted);
+                });
+                
+                // Sort by due date (closest first)
+                upcomingAssignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+                
+                // Limit to 5 items
+                upcomingAssignments = upcomingAssignments.slice(0, 5);
+            } catch (error) {
+                console.warn('Could not fetch assignments:', error);
+            }
+            
+            // Fetch recent discussions
+            try {
+                const discussionsResponse = await discussionService.getAllDiscussions();
+                const allDiscussions = discussionsResponse.data.discussions;
+                
+                // Filter discussions that are from user's courses
+                recentDiscussions = allDiscussions.filter(discussion => {
+                    return courses.some(course => 
+                        (typeof discussion.course === 'object' && discussion.course._id === course._id) ||
+                        discussion.course === course._id
+                    );
+                });
+                
+                // Sort by most recent activity
+                recentDiscussions.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+                
+                // Limit to 5 items
+                recentDiscussions = recentDiscussions.slice(0, 5);
+            } catch (error) {
+                console.warn('Could not fetch discussions:', error);
+            }
+        }
+        
+        // Build dashboard HTML
+        content.innerHTML = `
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold">Dashboard</h1>
+                <p class="text-gray-600 dark:text-gray-400">Welcome back, ${currentUser.firstName}!</p>
+            </div>
+            
+            <!-- My Courses Section -->
+            <div class="mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">My Courses</h2>
+                    <a href="#" onclick="event.preventDefault(); loadView('courses');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                        View All
+                    </a>
                 </div>
                 
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-                    <h3 class="text-lg font-semibold mb-3">Recent Activity</h3>
-                    ${recentDiscussions.length > 0 ? `
-                        <div class="divide-y divide-gray-200 dark:divide-gray-700">
-                            ${recentDiscussions.map(discussion => {
-                                const course = discussion.course;
-                                return `
-                                    <div class="py-3">
-                                        <div class="flex justify-between">
-                                            <p class="font-medium">${discussion.title}</p>
-                                            <p class="text-sm text-gray-500 dark:text-gray-400">${formatDate(discussion.createdAt)}</p>
-                                        </div>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            ${course.name} • by ${discussion.author.firstName} ${discussion.author.lastName} • ${discussion.replyCount || discussion.replies?.length || 0} replies
-                                        </p>
+                ${courses.length > 0 ? `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        ${courses.slice(0, 6).map(course => `
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
+                                <div class="h-20 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}"></div>
+                                <div class="p-4">
+                                    <h3 class="font-semibold text-lg mb-1">${course.name}</h3>
+                                    <div class="flex items-center justify-between">
+                                        <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
+                                            ${course.code}
+                                        </span>
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                                            ${course.instructor ? `${course.instructor.firstName} ${course.instructor.lastName}` : 'Instructor'}
+                                        </span>
                                     </div>
-                                `;
-                            }).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                        
+                        ${courses.length > 6 ? `
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex items-center justify-center h-40" onclick="loadView('courses')">
+                                <div class="text-center">
+                                    <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <i class="fas fa-ellipsis-h text-gray-500 dark:text-gray-400"></i>
+                                    </div>
+                                    <p class="text-gray-600 dark:text-gray-400">View all ${courses.length} courses</p>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex items-center justify-center h-40 border-2 border-dashed border-gray-300 dark:border-gray-700" onclick="loadView('courses')">
+                            <div class="text-center">
+                                <div class="w-12 h-12 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <i class="fas fa-plus text-primary dark:text-primaryLight"></i>
+                                </div>
+                                <p class="text-gray-600 dark:text-gray-400">Explore more courses</p>
+                            </div>
                         </div>
-                        <a href="#" class="block mt-3 text-primary dark:text-primaryLight text-sm font-medium" onclick="loadView('discussions'); return false;">
-                            View all discussions →
+                    </div>
+                ` : `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+                        <div class="w-16 h-16 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-book text-primary dark:text-primaryLight text-2xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-lg mb-2">No Courses Yet</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">You are not enrolled in any courses yet.</p>
+                        <button onclick="loadView('courses')" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Browse Courses
+                        </button>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Two Column Layout for Assignments and Discussions -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Upcoming Assignments -->
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Upcoming Assignments</h2>
+                        <a href="#" onclick="event.preventDefault(); loadView('assignments');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                            View All
                         </a>
-                    ` : `
-                        <p class="text-gray-500 dark:text-gray-400">No recent activity.</p>
-                    `}
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                        ${upcomingAssignments.length > 0 ? `
+                            <div class="space-y-4">
+                                ${upcomingAssignments.map(assignment => {
+                                    const course = assignment.course;
+                                    const courseName = typeof course === 'object' ? course.name : 'Course';
+                                    const courseCode = typeof course === 'object' ? course.code : '';
+                                    const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
+                                    const dueDate = new Date(assignment.dueDate);
+                                    const now = new Date();
+                                    const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+                                    
+                                    return `
+                                        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer" onclick="showAssignmentModal('${assignment._id}')">
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <h3 class="font-medium">${assignment.title}</h3>
+                                                    <div class="flex items-center mt-1">
+                                                        <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
+                                                            ${courseCode}
+                                                        </span>
+                                                        <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                                                        <span class="text-xs text-gray-500 dark:text-gray-400">${courseName}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right">
+                                                    <div class="font-medium text-sm ${daysLeft <= 1 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}">
+                                                        ${formatDate(assignment.dueDate, true)}
+                                                    </div>
+                                                    <div class="text-xs ${daysLeft <= 1 ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}">
+                                                        ${daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Due tomorrow' : `${daysLeft} days left`}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            <div class="text-center py-6">
+                                <div class="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas fa-check text-green-500 text-xl"></i>
+                                </div>
+                                <p class="text-gray-600 dark:text-gray-400">You're all caught up!</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">No upcoming assignments due.</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+                
+                <!-- Recent Discussions -->
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Recent Discussions</h2>
+                        <a href="#" onclick="event.preventDefault(); loadView('discussions');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                            View All
+                        </a>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                        ${recentDiscussions.length > 0 ? `
+                            <div class="space-y-4">
+                                ${recentDiscussions.map(discussion => {
+                                    const course = discussion.course;
+                                    const courseName = typeof course === 'object' ? course.name : 'Course';
+                                    const courseCode = typeof course === 'object' ? course.code : '';
+                                    const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
+                                    
+                                    return `
+                                        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer ${discussion.isAnnouncement ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30' : ''}" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
+                                            <div class="flex justify-between items-start">
+                                                <h3 class="font-medium">
+                                                    ${discussion.isAnnouncement ? '<i class="fas fa-bullhorn text-blue-500 mr-1"></i> ' : ''}
+                                                    ${discussion.title}
+                                                </h3>
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(discussion.createdAt)}</span>
+                                            </div>
+                                            <div class="flex items-center mt-1">
+                                                <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
+                                                    ${courseCode}
+                                                </span>
+                                                <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">by ${discussion.author.firstName} ${discussion.author.lastName}</span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">${discussion.content}</p>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            <div class="text-center py-6">
+                                <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <i class="fas fa-comments text-gray-500 text-xl"></i>
+                                </div>
+                                <p class="text-gray-600 dark:text-gray-400">No recent discussions</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Join a discussion or start a new one!</p>
+                                <button onclick="loadView('discussions')" class="mt-3 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Browse Discussions
+                                </button>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        content.innerHTML = `
+            <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
+                <p class="font-medium">Error loading dashboard</p>
+                <p>${error.message || 'Failed to load dashboard data'}</p>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadDashboard()">Retry</button>
+            </div>
+        `;
+    }
+}
+/**
+ * Load courses view with enrolled and available courses
+ * @returns {Promise<void>}
+ */
+async function loadCourses() {
+    try {
+        // Show loading state
+        content.innerHTML = `
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
+        
+        // Fetch user's enrolled courses
+        const myCoursesResponse = await courseService.getMyCourses();
+        const myCourses = myCoursesResponse.data.courses;
+        
+        // Fetch all available courses
+        const allCoursesResponse = await courseService.getAllCourses();
+        const allCourses = allCoursesResponse.data.courses;
+        
+        // Filter out courses the user is already enrolled in
+        const availableCourses = allCourses.filter(course => {
+            // Skip courses where user is instructor
+            if (course.instructor._id === currentUser._id) return false;
+            
+            // Skip courses user is already enrolled in
+            return !myCourses.some(myCourse => myCourse._id === course._id);
+        });
+        
+        // Build the view
+        content.innerHTML = `
+            <div class="mb-6 flex flex-wrap justify-between items-center">
+                <h1 class="text-2xl font-bold">Courses</h1>
+                ${currentUser.role === 'instructor' || currentUser.role === 'admin' ? `
+                    <button id="createCourseBtn" class="mt-2 sm:mt-0 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                        <i class="fas fa-plus mr-1"></i> Create Course
+                    </button>
+                ` : ''}
+            </div>
+            
+            <!-- Tabs for My Courses and Available Courses -->
+            <div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex overflow-x-auto">
+                    <button id="myCoursesTab" class="course-tab px-4 py-2 border-b-2 border-primary text-primary dark:text-primaryLight whitespace-nowrap">
+                        My Courses (${myCourses.length})
+                    </button>
+                    <button id="availableCoursesTab" class="course-tab px-4 py-2 border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap">
+                        Available Courses (${availableCourses.length})
+                    </button>
                 </div>
             </div>
             
-            <div>
-                <h3 class="text-lg font-semibold mb-3">My Courses</h3>
-                <div class="space-y-4">
-                    ${courses.slice(0, 3).map(course => `
-                        <div class="course-card bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer" 
-                             onclick="loadView('course-detail', {courseId: '${course._id}'})">
-                            <div class="h-2 ${course.color || 'bg-blue-500'}"></div>
-                            <div class="p-4">
-                                <h4 class="font-bold">${course.name}</h4>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">${course.code} • ${course.instructor.firstName} ${course.instructor.lastName}</p>
+            <!-- Search and Filter -->
+            <div class="mb-6 flex flex-wrap gap-3 items-center">
+                <div class="relative flex-1 min-w-[200px]">
+                    <input type="text" id="searchCourses" placeholder="Search courses..." class="pl-10 pr-4 py-2 w-full text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-3">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                </div>
+                
+                <select id="courseSort" class="px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    <option value="name">Sort by: Name</option>
+                    <option value="recent">Sort by: Recently Added</option>
+                    <option value="code">Sort by: Course Code</option>
+                </select>
+            </div>
+            
+            <!-- My Courses Tab Content -->
+            <div id="myCoursesContent" class="course-tab-content">
+                ${myCourses.length > 0 ? `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${myCourses.map(course => `
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer course-card" 
+                                data-id="${course._id}" 
+                                data-name="${course.name}"
+                                data-code="${course.code}"
+                                onclick="loadView('course-detail', {courseId: '${course._id}'})">
+                                <div class="h-32 bg-gradient-to-r relative" style="background-color: ${course.color || '#5D5CDE'}">
+                                    ${course.instructor._id === currentUser._id ? `
+                                        <div class="absolute top-3 right-3 px-2 py-1 bg-white bg-opacity-90 dark:bg-gray-800 dark:bg-opacity-90 text-xs font-medium rounded">
+                                            Instructor
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <div class="p-5">
+                                    <h3 class="text-lg font-semibold mb-1">${course.name}</h3>
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
+                                            ${course.code}
+                                        </span>
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                                            ${course.students?.length || 0} students
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor.firstName}" class="w-6 h-6 rounded-full mr-2">
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">
+                                            ${course.instructor.firstName} ${course.instructor.lastName}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+                        <div class="w-16 h-16 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-book text-primary dark:text-primaryLight text-2xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-lg mb-2">No Courses Yet</h3>
+                        <p class="text-gray-600 dark:text-gray-400 mb-4">You are not enrolled in any courses yet.</p>
+                        <button id="browseCourseBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Browse Available Courses
+                        </button>
+                    </div>
+                `}
+            </div>
+            
+            <!-- Available Courses Tab Content -->
+            <div id="availableCoursesContent" class="course-tab-content hidden">
+                ${availableCourses.length > 0 ? `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${availableCourses.map(course => `
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer course-card" 
+                                data-id="${course._id}" 
+                                data-name="${course.name}"
+                                data-code="${course.code}">
+                                <div class="h-32 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}"></div>
+                                <div class="p-5">
+                                    <h3 class="text-lg font-semibold mb-1">${course.name}</h3>
+                                    <div class="flex items-center justify-between mb-3">
+                                        <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
+                                            ${course.code}
+                                        </span>
+                                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                                            ${course.students?.length || 0} students
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center mb-4">
+                                        <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor.firstName}" class="w-6 h-6 rounded-full mr-2">
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">
+                                            ${course.instructor.firstName} ${course.instructor.lastName}
+                                        </span>
+                                    </div>
+                                    <button class="enroll-btn w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition" data-id="${course._id}">
+                                        Enroll in Course
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+                        <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-search text-gray-500 text-2xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-lg mb-2">No Available Courses</h3>
+                        <p class="text-gray-600 dark:text-gray-400">There are no new courses available for enrollment at this time.</p>
+                    </div>
+                `}
+            </div>
+        `;
+        
+        // Set up event listeners
+        
+        // Tab switching
+        document.getElementById('myCoursesTab').addEventListener('click', () => {
+            // Update active tab
+            document.getElementById('myCoursesTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('myCoursesTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            document.getElementById('availableCoursesTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('availableCoursesTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            
+            // Show/hide content
+            document.getElementById('myCoursesContent').classList.remove('hidden');
+            document.getElementById('availableCoursesContent').classList.add('hidden');
+        });
+        
+        document.getElementById('availableCoursesTab').addEventListener('click', () => {
+            // Update active tab
+            document.getElementById('availableCoursesTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('availableCoursesTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            document.getElementById('myCoursesTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('myCoursesTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            
+            // Show/hide content
+            document.getElementById('availableCoursesContent').classList.remove('hidden');
+            document.getElementById('myCoursesContent').classList.add('hidden');
+        });
+        
+        // Create course button
+        const createCourseBtn = document.getElementById('createCourseBtn');
+        if (createCourseBtn) {
+            createCourseBtn.addEventListener('click', () => {
+                showCreateCourseModal();
+            });
+        }
+        
+        // Browse courses button
+        const browseCourseBtn = document.getElementById('browseCourseBtn');
+        if (browseCourseBtn) {
+            browseCourseBtn.addEventListener('click', () => {
+                document.getElementById('availableCoursesTab').click();
+            });
+        }
+        
+        // Course enrollment buttons
+        const enrollBtns = document.querySelectorAll('.enroll-btn');
+        enrollBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent navigating to course detail
+                const courseId = btn.dataset.id;
+                const course = availableCourses.find(c => c._id === courseId);
+                showEnrollmentModal(course);
+            });
+        });
+        
+        // Available course card click handler
+        const availableCourseCards = document.querySelectorAll('#availableCoursesContent .course-card');
+        availableCourseCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const courseId = card.dataset.id;
+                const course = availableCourses.find(c => c._id === courseId);
+                showCoursePreviewModal(course);
+            });
+        });
+        
+        // Course search
+        const searchInput = document.getElementById('searchCourses');
+        searchInput.addEventListener('input', () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            filterCourses(searchTerm);
+        });
+        
+        // Course sorting
+        const sortSelect = document.getElementById('courseSort');
+        sortSelect.addEventListener('change', () => {
+            sortCourses(sortSelect.value);
+        });
+        
+    } catch (error) {
+        console.error('Error loading courses:', error);
+        content.innerHTML = `
+            <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
+                <p class="font-medium">Error loading courses</p>
+                <p>${error.message || 'Failed to load courses data'}</p>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadCourses()">Retry</button>
+            </div>
+        `;
+    }
+}
+
+// Helper functions for courses view
+function filterCourses(searchTerm) {
+    const courseCards = document.querySelectorAll('.course-card');
+    courseCards.forEach(card => {
+        const name = card.dataset.name.toLowerCase();
+        const code = card.dataset.code.toLowerCase();
+        
+        if (name.includes(searchTerm) || code.includes(searchTerm)) {
+            card.classList.remove('hidden');
+        } else {
+            card.classList.add('hidden');
+        }
+    });
+}
+
+function sortCourses(sortBy) {
+    const myCoursesContent = document.getElementById('myCoursesContent');
+    const availableCoursesContent = document.getElementById('availableCoursesContent');
+    
+    [myCoursesContent, availableCoursesContent].forEach(container => {
+        const courseCards = Array.from(container.querySelectorAll('.course-card'));
+        
+        courseCards.sort((a, b) => {
+            if (sortBy === 'name') {
+                return a.dataset.name.localeCompare(b.dataset.name);
+            } else if (sortBy === 'code') {
+                return a.dataset.code.localeCompare(b.dataset.code);
+            } else if (sortBy === 'recent') {
+                // Use the DOM order for "recent" since we don't track creation date in the card
+                return 0;
+            }
+        });
+        
+        // Reattach sorted cards
+        courseCards.forEach(card => container.querySelector('.grid').appendChild(card));
+    });
+}
+/**
+ * Show modal for creating a new course
+ */
+function showCreateCourseModal() {
+    const availableColors = [
+        '#5D5CDE', // Default blue-purple
+        '#3B82F6', // Blue
+        '#10B981', // Green
+        '#F59E0B', // Amber
+        '#EF4444', // Red
+        '#8B5CF6', // Purple
+        '#EC4899', // Pink
+        '#6366F1', // Indigo
+        '#14B8A6', // Teal
+        '#F97316', // Orange
+    ];
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Create New Course</h3>
+                    <button id="closeCreateCourseModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="createCourseForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="courseName" required placeholder="Enter course name" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Code <span class="text-red-500">*</span></label>
+                        <input type="text" id="courseCode" required placeholder="e.g. CS101" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Description</label>
+                        <textarea id="courseDescription" rows="3" placeholder="Describe your course" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Color</label>
+                        <div class="grid grid-cols-5 gap-3 mb-2">
+                            ${availableColors.map((color, index) => `
+                                <button type="button" data-color="${color}" class="color-option w-full h-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500" style="background-color: ${color}; ${index === 0 ? 'box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);' : ''}"></button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div id="createCourseError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelCreateCourseBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Create Course
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Track selected color
+    let selectedColor = availableColors[0];
+    
+    // Set up event listeners
+    document.getElementById('closeCreateCourseModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('cancelCreateCourseBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Color selection
+    const colorOptions = document.querySelectorAll('.color-option');
+    colorOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            // Remove highlight from all options
+            colorOptions.forEach(opt => {
+                opt.style.boxShadow = '';
+            });
+            
+            // Highlight selected option
+            option.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.5)';
+            selectedColor = option.dataset.color;
+        });
+    });
+    
+    // Form submission
+    document.getElementById('createCourseForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('courseName').value;
+        const code = document.getElementById('courseCode').value;
+        const description = document.getElementById('courseDescription').value;
+        const errorDiv = document.getElementById('createCourseError');
+        
+        errorDiv.classList.add('hidden');
+        
+        if (!name || !code) {
+            errorDiv.textContent = 'Course name and code are required.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        try {
+            // Submit course data
+            await courseService.createCourse({
+                name,
+                code,
+                description,
+                color: selectedColor
+            });
+            
+            // Close modal and refresh courses
+            document.body.removeChild(modalContainer);
+            showToast('Course created successfully!');
+            loadCourses();
+        } catch (error) {
+            console.error('Error creating course:', error);
+            errorDiv.textContent = error.message || 'Failed to create course. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+/**
+ * Show modal with course preview for unenrolled users
+ * @param {Object} course - The course to preview
+ */
+function showCoursePreviewModal(course) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-3xl p-0 max-h-[90vh] overflow-y-auto">
+                <div class="h-48 w-full" style="background-color: ${course.color || '#5D5CDE'}"></div>
+                <div class="p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 class="text-2xl font-semibold">${course.name}</h3>
+                            <div class="flex items-center mt-1">
+                                <span class="px-2 py-1 text-xs rounded-full mr-2" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
+                                    ${course.code}
+                                </span>
+                                <span class="text-sm text-gray-500 dark:text-gray-400">
+                                    ${course.students?.length || 0} students enrolled
+                                </span>
                             </div>
                         </div>
-                    `).join('')}
-                </div>
-                <a href="#" class="block mt-3 text-primary dark:text-primaryLight text-sm font-medium" onclick="loadView('courses'); return false;">
-                    View all courses →
-                </a>
-                
-                <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-                    <h3 class="text-lg font-semibold mb-3">Calendar</h3>
-                    <div class="text-center py-4 px-2">
-                        <div class="font-medium text-lg mb-2">${getCurrentMonth()}</div>
-                        <div class="grid grid-cols-7 gap-1 text-xs mb-2">
-                            <div>Su</div>
-                            <div>Mo</div>
-                            <div>Tu</div>
-                            <div>We</div>
-                            <div>Th</div>
-                            <div>Fr</div>
-                            <div>Sa</div>
+                        <button id="closePreviewModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor.firstName}" class="w-10 h-10 rounded-full mr-3">
+                        <div>
+                            <p class="font-medium">${course.instructor.firstName} ${course.instructor.lastName}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Instructor</p>
                         </div>
-                        <div class="grid grid-cols-7 gap-1">
-                            ${generateCalendarDays(upcomingAssignments)}
-                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h4 class="font-semibold mb-2">About This Course</h4>
+                        <p class="text-gray-600 dark:text-gray-300">
+                            ${course.description || 'No description provided for this course.'}
+                        </p>
+                    </div>
+                    
+                    <div class="flex justify-end">
+                        <button id="cancelPreviewBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button id="enrollFromPreviewBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Enroll in Course
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closePreviewModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('cancelPreviewBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('enrollFromPreviewBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showEnrollmentModal(course);
+    });
 }
-
-async function loadCourses() {
-    try {
-        // Fetch all courses
-        const response = await courseService.getMyCourses();
-        console.log('My Courses Response:', response);
-
-        // Ensure response.data.courses exists and is an array
-        const courses = response?.data?.courses || [];
-        if (!Array.isArray(courses)) {
-            throw new Error('Invalid courses data from getMyCourses');
-        }
-
-        // Fetch all available courses for enrollment
-        const allResponse = await courseService.getAllCourses();
-        console.log('All Courses Response:', allResponse);
-
-        // Ensure allResponse.data.courses exists and is an array
-        const allCourses = allResponse.data.courses || [];
-        if (!Array.isArray(allCourses)) {
-            throw new Error('Invalid courses data from getAllCourses');
-        }
-
-        // Filter available courses
-        const availableCourses = allCourses.filter(
-            course => !courses.some(myCourse => myCourse._id === course._id)
-        );
-
-        console.log('Available Courses:', availableCourses);
-
-        // Render the courses
-        content.innerHTML = `
-            <h2 class="text-2xl font-bold mb-4">My Courses</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                ${courses.map(course => `
-                    <div class="course-card bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer" 
-                            onclick="loadView('course-detail', {courseId: '${course._id}'})">
-                        <div class="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                            <i class="fas fa-book-open text-3xl text-gray-400 dark:text-gray-500"></i>
-                        </div>
-                        <div class="h-2 ${course.color || 'bg-blue-500'}"></div>
-                        <div class="p-4">
-                            <h3 class="text-lg font-bold">${course.name}</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">${course.code}</p>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">${course.instructor.firstName} ${course.instructor.lastName}</p>
-                        </div>
-                    </div>
-                `).join('')}
-            
-            ${currentUser.role === 'student' ? ` 
-                <div id="joinCourseCard" class="course-card bg-white dark:bg-gray-800 rounded-lg shadow-md border-2 border-dashed border-gray-300 dark:border-gray-700 flex flex-col justify-center items-center p-6 cursor-pointer">
-                    <div class= enroll-button "w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                        <i class="fas fa-plus text-3xl text-primary dark:text-primaryLight"></i>
-                    </div>
-                    <h3 class="text-lg font-medium text-gray-700 dark:text-gray-300">Join New Course</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">click the plus sign</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center mt-1">Enter a course code to enroll</p>
-                </div>
-            </div>
-            ` : ''}
-            </div>
-            ${currentUser.role === 'instructor' ? `
-                <div class="mt-8">
-                    <h2 class="text-2xl font-bold mb-4">Create New Course</h2>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-                        <form id="createCourseForm" class="space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Name</label>
-                                    <input type="text" id="courseName" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Code</label>
-                                    <input type="text" id="courseCode" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                                <textarea id="courseDescription" rows="3" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Enrollment Key (optional)</label>
-                                    <input type="text" id="enrollmentKey" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Color Theme</label>
-                                    <select id="courseColor" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                        <option value="bg-blue-500">Blue</option>
-                                        <option value="bg-green-500">Green</option>
-                                        <option value="bg-red-500">Red</option>
-                                        <option value="bg-purple-500">Purple</option>
-                                        <option value="bg-yellow-500">Yellow</option>
-                                        <option value="bg-pink-500">Pink</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                                    Create Course
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            ` : ''}
-
-            ${availableCourses.length > 0 ? `
-                <div class="mt-8">
-                    <h2 class="text-2xl font-bold mb-4">Available Courses</h2>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead class="bg-gray-50 dark:bg-gray-750">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Course</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Code</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Instructor</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                ${availableCourses.map(course => `
-                                    <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium">${course.name}</div>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-500 dark:text-gray-400">${course.code}</div>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-gray-500 dark:text-gray-400">${course.instructor.firstName} ${course.instructor.lastName}</div>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <button class="enroll-button px-3 py-1.5 bg-primary hover:bg-primaryDark text-white text-sm rounded transition" data-course-id="${course._id}">
-                                                Enroll
-                                            </button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            ` : ''}
-        `;
-
-        // Setup enroll buttons
-        document.querySelectorAll('.enroll-button').forEach(button => {
-            button.addEventListener('click', async (e) => {
-                const courseId = e.target.dataset.courseId;
-                showEnrollmentKeyModal(courseId);
-            });
-        });
-        
-        // Setup create course form
-        const createCourseForm = document.getElementById('createCourseForm');
-        if (createCourseForm) {
-            createCourseForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                try {
-                    const courseData = {
-                        name: document.getElementById('courseName').value,
-                        code: document.getElementById('courseCode').value,
-                        description: document.getElementById('courseDescription').value,
-                        color: document.getElementById('courseColor').value,
-                        enrollmentKey: document.getElementById('enrollmentKey').value || undefined
-                    };
-                    
-                    await courseService.createCourse(courseData);
-                    showToast('Course created successfully!');
-                    loadView('courses');
-                } catch (error) {
-                    showToast(`Failed to create course: ${error.message}`, 'error');
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Error loading courses:', error);
-        showToast('Failed to load courses', 'error');
-    }
-}
-
 // Course detail view
+/**
+ * Load course detail view with separate assignment displays for students and instructors
+ * @param {string} courseId - The ID of the course to display
+ * @returns {Promise<void>}
+ */
 async function loadCourseDetail(courseId) {
-    // Fetch course data
-    const courseResponse = await courseService.getCourse(courseId);
-    const course = courseResponse.data.course;
-    console.log('Course:', course);
-    currentCourse = course;
-    
-    // Fetch course-related data
-    const resourcesResponse = await resourceService.getCourseResources(courseId);
-    const courseResources = resourcesResponse.data.resources;
-    
-    const assignmentsResponse = await assignmentService.getCourseAssignments(courseId);
-    const courseAssignments = assignmentsResponse.data.assignments;
-    
-    const discussionsResponse = await discussionService.getCourseDiscussions(courseId);
-    const courseDiscussions = discussionsResponse.data.discussions;
-  
-    const announcementsResponse = await announcementService.getCourseAnnouncements(courseId);
-    const courseAnnouncements = announcementsResponse.data.announcements;
-    
-    // Render the course detail page
-    content.innerHTML = `
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden mb-6">
-        <div class="h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-          <i class="fas fa-book-open text-5xl text-gray-400 dark:text-gray-500"></i>
-        </div>
-        <div class="h-2 ${course.color || 'bg-blue-500'}"></div>
-        <div class="p-6">
-          <div class="flex flex-wrap justify-between items-start">
-            <div>
-              <h2 class="text-2xl font-bold">${course.name}</h2>
-              <p class="text-gray-600 dark:text-gray-400">
-                ${course.code} • ${course.instructor.firstName} ${course.instructor.lastName}
-              </p>
+    try {
+        // Show loading state
+        content.innerHTML = `
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <div class="flex mt-2 md:mt-0 space-x-2">
-              
-              
-              ${currentUser.role === 'student' ? `
-                <button class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                <i class="fas fa-envelope mr-2"></i>Contact Instructor
-              </button>
-                <button id="unenrollBtn" class="px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition">
-                  <i class="fas fa-sign-out-alt mr-2"></i>Unenroll
-                </button>
-              ` : ''}
-            </div>
-          </div>
-        </div>
-      </div>
-  
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-     
-        <div class="lg:col-span-2">
+        `;
         
-          <!-- Announcements Section -->
+        // Fetch course data
+        const courseResponse = await courseService.getCourse(courseId);
+        const course = courseResponse.data.course;
+        currentCourse = course;
+        
+        // Determine user role in the course
+        const isInstructor = (course.instructor._id === currentUser._id) || currentUser.role === 'admin';
+        const isEnrolled = course.students.some(student => 
+            (typeof student === 'object' && student._id === currentUser._id) || 
+            student === currentUser._id
+        );
+        
+        // Fetch course resources, assignments, discussions and announcements
+        let courseResources = [];
+        let courseAssignments = [];
+        let courseDiscussions = [];
+        let courseAnnouncements = [];
+        
+        try {
+            // Fetch resources
+            const resourcesResponse = await resourceService.getCourseResources(courseId);
+            courseResources = resourcesResponse.data.resources;
+        } catch (error) {
+            console.warn('Could not load resources:', error);
+        }
+        
+        try {
+            // Fetch assignments
+            const assignmentsResponse = await assignmentService.getCourseAssignments(courseId);
+            courseAssignments = assignmentsResponse.data.assignments;
+            
+            // If user is a student, get submissions for status display
+            if (!isInstructor && isEnrolled) {
+                // For each assignment, fetch submission if exists
+                for (let i = 0; i < courseAssignments.length; i++) {
+                    try {
+                        const submissionsResponse = await assignmentService.getSubmissions(courseAssignments[i]._id);
+                        const submissions = submissionsResponse.data.submissions;
+                        
+                        // Find the student's submission for this assignment
+                        const mySubmission = submissions.find(s => 
+                            (typeof s.student === 'object' && s.student._id === currentUser._id) || 
+                            s.student === currentUser._id
+                        );
+                        
+                        // Attach submission to assignment object for easier access
+                        if (mySubmission) {
+                            courseAssignments[i].mySubmission = mySubmission;
+                        }
+                    } catch (err) {
+                        console.warn(`Could not fetch submissions for assignment ${courseAssignments[i]._id}:`, err);
+                    }
+                }
+            }
+            
+            // Sort assignments by due date (upcoming first)
+            courseAssignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            
+        } catch (error) {
+            console.warn('Could not load assignments:', error);
+        }
+        
+        try {
+            // Fetch discussions
+            const discussionsResponse = await discussionService.getCourseDiscussions(courseId);
+            const announcementsResponse = await announcementService.getCourseAnnouncements(courseId);
+            // Separate announcements from regular discussions
+            courseDiscussions = discussionsResponse.data.discussions.filter(d => !d.isAnnouncement);
+            courseAnnouncements = announcementsResponse.data.announcements;
+            
+            // Sort announcements by date (newest first)
+            courseAnnouncements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            // Sort discussions by activity (newest/most active first)
+            courseDiscussions.sort((a, b) => {
+                // First check if pinned
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
+                
+                // Then by last activity
+                const aLastActivity = a.updatedAt || a.createdAt;
+                const bLastActivity = b.updatedAt || b.createdAt;
+                return new Date(bLastActivity) - new Date(aLastActivity);
+            });
+            
+        } catch (error) {
+            console.warn('Could not load discussions:', error);
+        }
+        
+        // Generate HTML
+        content.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden mb-6">
+                <!-- Course header with banner and info -->
+                <div class="h-40 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}">
+                    ${isInstructor ? `
+                        <div class="h-full flex justify-end">
+                            <button id="courseSettingsBtn" class="m-3 px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded transition">
+                                <i class="fas fa-cog mr-1"></i> Course Settings
+                            </button>
+                        </div>
+                    ` : ''}
+                    
+                </div>
+                
+                <div class="p-6 relative">
+                    <h1 class="text-2xl font-bold">${course.name}</h1>
+                    <div class="flex flex-wrap items-center gap-2 mt-1 mb-4">
+                        <span class="px-2 py-1 text-sm rounded font-medium" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
+                            ${course.code}
+                        </span>
+                        <span class="text-gray-500 dark:text-gray-400">•</span>
+                        <span class="text-gray-600 dark:text-gray-300">
+                            <i class="fas fa-user-tie mr-1"></i> ${course.instructor.firstName} ${course.instructor.lastName}
+                        </span>
+                        <span class="text-gray-500 dark:text-gray-400">•</span>
+                        <span class="text-gray-600 dark:text-gray-300">
+                            <i class="fas fa-users mr-1"></i> ${course.students ? course.students.length : 0} students
+                        </span>
+                    </div>
+                    
+                    <p class="text-gray-600 dark:text-gray-300 mb-4">${course.description || 'No course description provided.'}</p>
+                    <div>
+                ${currentUser.role === 'student' ? `
+                    <button class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                    <i class="fas fa-envelope mr-2"></i>Contact Instructor
+                  </button>
+                    <button id="unenrollBtn" class="px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition">
+                      <i class="fas fa-sign-out-alt mr-2"></i>Unenroll
+                    </button>
+                  ` : ''}
+                </div>
+                    ${!isEnrolled && !isInstructor ? `
+                        <div class="mt-4">
+                            <p class="mb-3">You are not enrolled in this course.</p>
+                            <button id="enrollBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                Enroll in Course
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Announcements Section -->
           <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
             <div class="flex justify-between items-center mb-4">
               <h3 class="text-lg font-semibold">Announcements</h3>
@@ -574,6 +1146,7 @@ async function loadCourseDetail(courseId) {
                       <img src="${getProfileImageUrl(announcement.author)}" alt="Instructor" class="w-10 h-10 rounded-full mr-3">
                       <div>
                         <p class="font-medium">${announcement.author.firstName} ${announcement.author.lastName} <span class="text-gray-500 dark:text-gray-400 font-normal text-sm">• ${formatTimeAgo(announcement.createdAt)}</span></p>
+                        <p class="text-sm font-semibold text-black-500 dark:text-black-400">${announcement.title}</p>
                         <p class="mt-1">${announcement.content}</p>
                       </div>
                     </div>
@@ -584,163 +1157,281 @@ async function loadCourseDetail(courseId) {
               <p class="text-gray-500 dark:text-gray-400">No announcements yet.</p>
             `}
           </div>
-        <!-- Generate Link Section Section -->
-         ${currentUser.role === 'instructor' && course.instructor._id === currentUser._id ? `
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Enrollment Links</h3>
-                <button id="generateLinkBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
-                    <i class="fas fa-plus mr-1"></i> Generate New Link
-                </button>
-            </div>
             
-            <div id="courseLinksContainer" class="space-y-3">
-                <div class="text-center py-4">
-                    <div class="spinner w-8 h-8 border-4 border-gray-300 dark:border-gray-600 rounded-full mx-auto"></div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Loading enrollment links...</p>
+            <!-- Main course content sections -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left column - Assignments and Discussions -->
+                <div class="lg:col-span-2">
+                    <!-- Assignments section -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold">Assignments</h2>
+                            ${isInstructor ? `
+                                <button id="newAssignmentBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                                    <i class="fas fa-plus mr-1"></i> New Assignment
+                                </button>
+                            ` : ''}
+                        </div>
+                        
+                        ${courseAssignments.length > 0 ? `
+                            <div class="space-y-3">
+                                ${courseAssignments.slice(0, 5).map(assignment => {
+                                    const dueDate = new Date(assignment.dueDate);
+                                    const now = new Date();
+                                    const isPastDue = dueDate < now;
+                                    const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+                                    
+                                    // Determine status for students
+                                    let status = 'Upcoming';
+                                    let statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+                                    
+                                    if (!isInstructor && assignment.mySubmission) {
+                                        if (assignment.mySubmission.status === 'graded' || assignment.mySubmission.grade) {
+                                            status = 'Graded';
+                                            statusClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+                                        } else {
+                                            status = 'Submitted';
+                                            statusClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+                                        }
+                                    } else if (isPastDue) {
+                                        status = 'Past Due';
+                                        statusClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+                                    } else if (daysLeft <= 1) {
+                                        status = 'Due Soon';
+                                        statusClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
+                                    }
+                                    
+                                    return `
+                                        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition">
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <h3 class="font-medium">${assignment.title}</h3>
+                                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        Due: ${formatDate(assignment.dueDate)} ${!isPastDue ? `(${daysLeft} day${daysLeft !== 1 ? 's' : ''} left)` : ''}
+                                                    </p>
+                                                </div>
+                                                <span class="px-2 py-1 text-xs rounded-full ${statusClass}">
+                                                    ${status}
+                                                </span>
+                                            </div>
+                                            <div class="mt-2 text-sm">
+                                                <span class="text-gray-600 dark:text-gray-300">${assignment.pointsPossible} points</span>
+                                                ${!isInstructor && assignment.mySubmission && assignment.mySubmission.grade ? `
+                                                    <span class="mx-2">•</span>
+                                                    <span class="font-medium ${getGradeColorClass(assignment.mySubmission.grade.score, assignment.pointsPossible)}">
+                                                        ${assignment.mySubmission.grade.score}/${assignment.pointsPossible} (${((assignment.mySubmission.grade.score / assignment.pointsPossible) * 100).toFixed(1)}%)
+                                                    </span>
+                                                ` : ''}
+                                            </div>
+                                            <div class="mt-2">
+                                                ${isInstructor ? `
+                                                    <button class="px-3 py-1.5 bg-primary hover:bg-primaryDark text-white text-sm rounded transition" onclick="showAssignmentModal('${assignment._id}')">
+                                                        View Details
+                                                    </button>
+                                                    ${assignment.submissions?.length > 0 ? `
+                                                        <button class="ml-2 px-3 py-1.5 border border-primary text-primary hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark text-sm rounded transition" onclick="viewSubmissions('${assignment._id}')">
+                                                            Submissions (${assignment.submissions.length})
+                                                        </button>
+                                                    ` : ''}
+                                                ` : `
+                                                    <button class="px-3 py-1.5 ${assignment.mySubmission ? 'border border-primary text-primary hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark' : 'bg-primary hover:bg-primaryDark text-white'} text-sm rounded transition" onclick="showAssignmentModal('${assignment._id}')">
+                                                        ${assignment.mySubmission ? 'View Submission' : isPastDue && !assignment.allowLateSubmissions ? 'View (Past Due)' : 'Submit'}
+                                                    </button>
+                                                `}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                            
+                            ${courseAssignments.length > 5 ? `
+                                <div class="text-center mt-4">
+                                    <button id="viewAllAssignmentsBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                                        View All Assignments (${courseAssignments.length})
+                                    </button>
+                                </div>
+                            ` : ''}
+                        ` : `
+                            <p class="text-gray-500 dark:text-gray-400">No assignments have been created for this course yet.</p>
+                            ${isInstructor ? `
+                                <button id="createFirstAssignmentBtn" class="mt-3 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Create First Assignment
+                                </button>
+                            ` : ''}
+                        `}
+                    </div>
+                    
+                    <!-- Discussions section -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold">Discussions</h2>
+                            <button id="newDiscussionBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                                <i class="fas fa-plus mr-1"></i> New Discussion
+                            </button>
+                        </div>
+                        
+                        ${courseDiscussions.length > 0 ? `
+                            <div class="space-y-3">
+                                ${courseDiscussions.slice(0, 5).map(discussion => `
+                                    <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-medium flex items-center">
+                                                ${discussion.title}
+                                                ${discussion.isPinned ? `
+                                                    <span class="ml-2 text-yellow-500 dark:text-yellow-400" title="Pinned">
+                                                        <i class="fas fa-thumbtack"></i>
+                                                    </span>
+                                                ` : ''}
+                                            </h3>
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(discussion.createdAt)}</span>
+                                        </div>
+                                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">${discussion.content}</p>
+                                        <div class="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                            <img src="${getProfileImageUrl(discussion.author)}" alt="${discussion.author.firstName}" class="w-5 h-5 rounded-full mr-2">
+                                            ${discussion.author.firstName} ${discussion.author.lastName}
+                                            <span class="mx-2">•</span>
+                                            <i class="far fa-comment-alt mr-1"></i> ${discussion.replyCount || discussion.replies?.length || 0} replies
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            
+                            ${courseDiscussions.length > 5 ? `
+                                <div class="text-center mt-4">
+                                    <button id="viewAllDiscussionsBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                                        View All Discussions (${courseDiscussions.length})
+                                    </button>
+                                </div>
+                            ` : ''}
+                        ` : `
+                            <p class="text-gray-500 dark:text-gray-400">No discussions have been started in this course yet.</p>
+                            <button id="startFirstDiscussionBtn" class="mt-3 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                Start First Discussion
+                            </button>
+                        `}
+                    </div>
+                </div>
+                
+                <!-- Right column - Resources and Course Info -->
+                <div>
+                    <!-- Resources section -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-semibold">Resources</h2>
+                            ${isInstructor ? `
+                                <button id="uploadResourceBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                                    <i class="fas fa-plus mr-1"></i> Upload Resource
+                                </button>
+                            ` : ''}
+                        </div>
+                        
+                        ${courseResources.length > 0 ? `
+                            <div class="space-y-2">
+                                ${courseResources.filter(r => r.isVisible || isInstructor).map(resource => `
+                                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-750 rounded-lg ${!resource.isVisible ? 'opacity-70' : ''}">
+                                        ${getResourceIcon(resource)}
+                                        <div class="ml-3 flex-1 min-w-0">
+                                            <p class="font-medium truncate">${resource.title}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                ${getResourceTypeLabel(resource)}
+                                                ${!resource.isVisible ? ' • Hidden from students' : ''}
+                                            </p>
+                                        </div>
+                                        ${resource.type === 'link' ? `
+                                            <a href="${resource.link}" target="_blank" class="text-primary dark:text-primaryLight hover:underline ml-2">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        ` : `
+                                            <a href="#" class="text-primary dark:text-primaryLight hover:underline ml-2" onclick="event.stopPropagation(); viewResource('${resource._id}')">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                        `}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <p class="text-gray-500 dark:text-gray-400">No resources have been added to this course yet.</p>
+                            ${isInstructor ? `
+                                <button id="addFirstResourceBtn" class="mt-3 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Add First Resource
+                                </button>
+                            ` : ''}
+                        `}
+                    </div>
+                    
+                    <!-- Course info section -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                        <h2 class="text-xl font-semibold mb-4">Course Information</h2>
+                        
+                        <div class="space-y-3">
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Instructor</h3>
+                                <div class="flex items-center mt-1">
+                                    <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor.firstName}" class="w-8 h-8 rounded-full mr-3">
+                                    <div>
+                                        <p class="font-medium">${course.instructor.firstName} ${course.instructor.lastName}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">${course.instructor.email}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Course Code</h3>
+                                <p>${course.code}</p>
+                            </div>
+                            
+                            ${isInstructor ? `
+                                <div>
+                                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Enrollment Code</h3>
+                                    <div class="flex items-center">
+                                        <input type="text" value="${course.enrollmentKey}" readonly class="bg-gray-50 dark:bg-gray-700 text-sm p-1 rounded border border-gray-300 dark:border-gray-600 mr-2">
+                                        <button id="copyEnrollmentCodeBtn" class="text-primary dark:text-primaryLight" onclick="copyToClipboard('${course.enrollmentKey}')">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Course Link</h3>
+                                    <button id="generateCourseLinkBtn" class="text-primary dark:text-primaryLight text-sm font-medium mt-1">
+                                        <i class="fas fa-link mr-1"></i> Generate Enrollment Link
+                                    </button>
+                                </div>
+                            ` : ''}
+                            
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Students Enrolled</h3>
+                                <p>${course.students ? course.students.length : 0} students</p>
+                                ${isInstructor && course.students && course.students.length > 0 ? `
+                                    <button id="viewStudentsBtn" class="text-primary dark:text-primaryLight text-sm font-medium mt-1">
+                                        <i class="fas fa-users mr-1"></i> Manage Students
+                                    </button>
+                                ` : ''}
+                            </div>
+                            
+                            ${isInstructor ? `
+                                <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <button id="courseSettingsBtn2" class="w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                        <i class="fas fa-cog mr-1"></i> Course Settings
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    ` : ''}
-          <!-- Assignments Section -->
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg font-semibold">Upcoming Assignments</h3>
-              ${currentUser.role === 'instructor' ? `
-                <button id="createAssignmentBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
-                  <i class="fas fa-plus mr-1"></i> New Assignment
-                </button>
-              ` : ''}
-            </div>
-            ${courseAssignments.length > 0 ? `
-              <div class="divide-y divide-gray-200 dark:divide-gray-700">
-                ${courseAssignments.map(assignment => {
-                  const daysLeft = Math.ceil((new Date(assignment.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
-                  let statusBadge = '';
-                  // Here you could add logic to check if the student has submitted the assignment
-                  const isSubmitted = false;
-                  if (!isSubmitted) {
-                    statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">Pending</span>`;
-                  } else {
-                    statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Submitted</span>`;
-                  }
-                  return `
-                    <div class="py-3 flex flex-wrap justify-between items-center">
-                      <div class="mb-2 md:mb-0">
-                        <p class="font-medium">${assignment.title}</p>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Due: ${formatDate(assignment.dueDate)}</p>
-                      </div>
-                      <div class="flex items-center">
-                        ${statusBadge}
-                        <button class="ml-3 px-3 py-1.5 bg-primary hover:bg-primaryDark text-white text-sm rounded transition" onclick="showAssignmentModal('${assignment._id}')">
-                          ${!isSubmitted ? 'Submit' : 'View'}
-                        </button>
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-            ` : `
-              <p class="text-gray-500 dark:text-gray-400">No assignments yet.</p>
-            `}
-          </div>
-        </div>
-    
-        <div>
-          <!-- Resources Section -->
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg font-semibold">Resources</h3>
-              <button id="uploadResourceBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
-                <i class="fas fa-upload mr-1"></i> Upload Resource
-              </button>
-            </div>
-            ${courseResources.length > 0 ? `
-              <div class="divide-y divide-gray-200 dark:divide-gray-700">
-                ${courseResources.map(resource => {
-                  let iconClass = 'fa-file';
-                  if (resource.type === 'PDF') iconClass = 'fa-file-pdf text-red-500';
-                  else if (resource.type === 'PPT') iconClass = 'fa-file-powerpoint text-orange-500';
-                  else if (resource.type === 'Video') iconClass = 'fa-file-video text-blue-500';
-                  return `
-                    <div class="py-3 flex items-center">
-                      <div class="mr-3 text-lg">
-                        <i class="fas ${iconClass}"></i>
-                      </div>
-                      <div class="flex-1">
-                        <p class="font-medium">${resource.title}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                          ${resource.type} • Added ${formatDate(resource.createdAt)}
-                        </p>
-                      </div>
-                      <button class="text-primary dark:text-primaryLight hover:underline text-sm" onclick="viewResource('${resource._id}')">
-                        View
-                      </button>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-            ` : `
-              <p class="text-gray-500 dark:text-gray-400 mb-3">No resources yet.</p>
-            `}
-            <button id="uploadResourceBtn2" class="w-full mt-3 px-3 py-2 border border-primary text-primary hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark rounded transition text-sm">
-              <i class="fas fa-upload mr-1"></i> Upload Resource
-            </button>
-          </div>
-    
-          <!-- Discussions Section -->
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-            <div class="flex justify-between items-center mb-4">
-              <h3 class="text-lg font-semibold">Discussions</h3>
-              <button id="viewAllDiscussionsBtn" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium" onclick="loadView('discussions')">
-                View all
-              </button>
-            </div>
-            ${courseDiscussions.length > 0 ? `
-              <div class="divide-y divide-gray-200 dark:divide-gray-700">
-                ${courseDiscussions.map(discussion => `
-                  <div class="py-3 cursor-pointer" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
-                    <p class="font-medium">${discussion.title}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                      Started by ${discussion.author.firstName} ${discussion.author.lastName} • ${discussion.replyCount || discussion.replies?.length || 0} replies
-                    </p>
-                  </div>
-                `).join('')}
-              </div>
-              <button id="newDiscussionBtn" class="w-full mt-3 px-3 py-2 bg-primary hover:bg-primaryDark text-white rounded transition text-sm">
-                <i class="fas fa-plus mr-1"></i> New Discussion
-              </button>
-            ` : `
-              <p class="text-gray-500 dark:text-gray-400 mb-3">No discussions yet.</p>
-              <button id="newDiscussionBtn2" class="w-full px-3 py-2 bg-primary hover:bg-primaryDark text-white rounded transition text-sm">
-                <i class="fas fa-plus mr-1"></i> Start Discussion
-              </button>
-            `}
-          </div>
-        </div>
-      </div>
-    `;
-  
-    // Setup event listeners
-    document.getElementById('uploadResourceBtn').addEventListener('click', showUploadResourceModal);
-    document.getElementById('uploadResourceBtn2').addEventListener('click', showUploadResourceModal);
-  
-    const newDiscussionBtn = document.getElementById('newDiscussionBtn');
-    const newDiscussionBtn2 = document.getElementById('newDiscussionBtn2');
-    if (newDiscussionBtn) newDiscussionBtn.addEventListener('click', showNewDiscussionModal);
-    if (newDiscussionBtn2) newDiscussionBtn2.addEventListener('click', showNewDiscussionModal);
-  
-    const createAnnouncementBtn = document.getElementById('createAnnouncementBtn');
-    if (createAnnouncementBtn) {
-      createAnnouncementBtn.addEventListener('click', () => showNewAnnouncementModal());
-    }
-  
-    const createAssignmentBtn = document.getElementById('createAssignmentBtn');
-    if (createAssignmentBtn) {
-      createAssignmentBtn.addEventListener('click', showCreateAssignmentModal);
-    }
-  
-    const unenrollBtn = document.getElementById('unenrollBtn');
+        `;
+        
+        // Set up event listeners
+        
+        // Enrollment button
+        const enrollBtn = document.getElementById('enrollBtn');
+        if (enrollBtn) {
+            enrollBtn.addEventListener('click', () => {
+                showEnrollmentModal(course);
+            });
+        }
+        const unenrollBtn = document.getElementById('unenrollBtn');
     if (unenrollBtn) {
       unenrollBtn.addEventListener('click', async () => {
         if (confirm('Are you sure you want to unenroll from this course?')) {
@@ -754,16 +1445,1409 @@ async function loadCourseDetail(courseId) {
         }
       });
     }
+
+        // Announcements
+        const createAnnouncementBtn = document.getElementById('createAnnouncementBtn');
+    if (createAnnouncementBtn) {
+      createAnnouncementBtn.addEventListener('click', () => showNewAnnouncementModal());
+    }
+        
+        // Assignments
+        const newAssignmentBtn = document.getElementById('newAssignmentBtn');
+        if (newAssignmentBtn) {
+            newAssignmentBtn.addEventListener('click', () => {
+                showCreateAssignmentModal();
+            });
+        }
+        
+        const createFirstAssignmentBtn = document.getElementById('createFirstAssignmentBtn');
+        if (createFirstAssignmentBtn) {
+            createFirstAssignmentBtn.addEventListener('click', () => {
+                showCreateAssignmentModal();
+            });
+        }
+        
+        const viewAllAssignmentsBtn = document.getElementById('viewAllAssignmentsBtn');
+        if (viewAllAssignmentsBtn) {
+            viewAllAssignmentsBtn.addEventListener('click', () => {
+                loadView('assignments', { courseId: course._id });
+            });
+        }
+        
+        // Discussions
+        const newDiscussionBtn = document.getElementById('newDiscussionBtn');
+        if (newDiscussionBtn) {
+            newDiscussionBtn.addEventListener('click', () => {
+                showNewDiscussionModal();
+            });
+        }
+        
+        const startFirstDiscussionBtn = document.getElementById('startFirstDiscussionBtn');
+        if (startFirstDiscussionBtn) {
+            startFirstDiscussionBtn.addEventListener('click', () => {
+                showNewDiscussionModal();
+            });
+        }
+        
+        const viewAllDiscussionsBtn = document.getElementById('viewAllDiscussionsBtn');
+        if (viewAllDiscussionsBtn) {
+            viewAllDiscussionsBtn.addEventListener('click', () => {
+                loadView('discussions', { courseId: course._id });
+            });
+        }
+        
+        // Resources
+        const uploadResourceBtn = document.getElementById('uploadResourceBtn');
+        if (uploadResourceBtn) {
+            uploadResourceBtn.addEventListener('click', () => {
+                showUploadResourceModal(course._id);
+            });
+        }
+        
+        const addFirstResourceBtn = document.getElementById('addFirstResourceBtn');
+        if (addFirstResourceBtn) {
+            addFirstResourceBtn.addEventListener('click', () => {
+                showUploadResourceModal(course._id);
+            });
+        }
+        
+        // Course settings
+        const courseSettingsBtns = [
+            document.getElementById('courseSettingsBtn'),
+            document.getElementById('courseSettingsBtn2')
+        ];
+        
+        courseSettingsBtns.forEach(btn => {
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    showCourseSettingsModal(course);
+                });
+            }
+        });
+        
+        // View students
+        const viewStudentsBtn = document.getElementById('viewStudentsBtn');
+        if (viewStudentsBtn) {
+            viewStudentsBtn.addEventListener('click', () => {
+                showManageStudentsModal(course);
+            });
+        }
+        
+        // Generate course link
+        const generateCourseLinkBtn = document.getElementById('generateCourseLinkBtn');
+        if (generateCourseLinkBtn) {
+            generateCourseLinkBtn.addEventListener('click', () => {
+                showGenerateCourseLinkModal(course._id);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error loading course:', error);
+        content.innerHTML = `
+            <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
+                <p class="font-medium">Error loading course</p>
+                <p>${error.message || 'Failed to load course details'}</p>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadView('courses')">
+                    Back to Courses
+                </button>
+            </div>
+        `;
+    }
+
+}
+
+// Utility function to copy text to clipboard
+function copyToClipboard(text) {
+    const tempInput = document.createElement('input');
+    tempInput.value = text;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    document.execCommand('copy');
+    document.body.removeChild(tempInput);
     
-    if (currentUser.role === 'instructor' && course.instructor._id === currentUser._id) {
-    // Setup generate link button
-    document.getElementById('generateLinkBtn').addEventListener('click', showGenerateLinkModal);
-    
-    // Load course links
-    loadCourseLinks(course._id);
+    showToast('Copied to clipboard!');
+}
+
+// Get appropriate icon for resource type
+function getResourceIcon(resource) {
+    if (resource.type === 'file') {
+        const fileType = resource.file?.fileType || '';
+        if (fileType.includes('pdf')) {
+            return '<i class="far fa-file-pdf text-red-500 text-xl"></i>';
+        } else if (fileType.includes('word') || fileType.includes('document')) {
+            return '<i class="far fa-file-word text-blue-500 text-xl"></i>';
+        } else if (fileType.includes('excel') || fileType.includes('spreadsheet')) {
+            return '<i class="far fa-file-excel text-green-500 text-xl"></i>';
+        } else if (fileType.includes('powerpoint') || fileType.includes('presentation')) {
+            return '<i class="far fa-file-powerpoint text-orange-500 text-xl"></i>';
+        } else if (fileType.includes('image')) {
+            return '<i class="far fa-file-image text-purple-500 text-xl"></i>';
+        } else if (fileType.includes('video')) {
+            return '<i class="far fa-file-video text-pink-500 text-xl"></i>';
+        } else if (fileType.includes('audio')) {
+            return '<i class="far fa-file-audio text-yellow-500 text-xl"></i>';
+        } else if (fileType.includes('zip') || fileType.includes('archive')) {
+            return '<i class="far fa-file-archive text-gray-500 text-xl"></i>';
+        } else {
+            return '<i class="far fa-file text-gray-500 text-xl"></i>';
+        }
+    } else if (resource.type === 'link') {
+        return '<i class="fas fa-link text-blue-500 text-xl"></i>';
+    } else if (resource.type === 'text') {
+        return '<i class="far fa-file-alt text-gray-500 text-xl"></i>';
+    } else {
+        return '<i class="far fa-file text-gray-500 text-xl"></i>';
     }
 }
-  
+
+// Get descriptive label for resource type
+function getResourceTypeLabel(resource) {
+    if (resource.type === 'file') {
+        return resource.file?.fileName || 'File';
+    } else if (resource.type === 'link') {
+        return 'External Link';
+    } else if (resource.type === 'text') {
+        return 'Text Content';
+    } else {
+        return 'Resource';
+    }
+}
+
+// Get color class for grade display
+function getGradeColorClass(score, total) {
+    const percentage = (score / total) * 100;
+    
+    if (percentage >= 90) {
+        return 'text-green-500';
+    } else if (percentage >= 80) {
+        return 'text-blue-500';
+    } else if (percentage >= 70) {
+        return 'text-yellow-500';
+    } else if (percentage >= 60) {
+        return 'text-orange-500';
+    } else {
+        return 'text-red-500';
+    }
+}
+
+// Course Settings Modal
+// Update the showCourseSettingsModal function to include a "Course Links" option
+function showCourseSettingsModal(course) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Course Settings</h3>
+                    <button id="closeSettingsModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Course Appearance</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Customize how your course looks</p>
+                        </div>
+                        <button id="editAppearanceBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Edit
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Course Information</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Update course name, code and description</p>
+                        </div>
+                        <button id="editInfoBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Edit
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Enrollment Options</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Manage enrollment code and course access</p>
+                        </div>
+                        <button id="editEnrollmentBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Edit
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Course Links</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">View and manage all generated enrollment links</p>
+                        </div>
+                        <button id="viewLinksBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            View Links
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Manage Students</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">View, add or remove students</p>
+                        </div>
+                        <button id="manageStudentsBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Manage
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-medium text-red-600 dark:text-red-400">Danger Zone</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Archive or delete this course</p>
+                        </div>
+                        <button id="dangerZoneBtn" class="px-3 py-1.5 text-red-600 border border-red-600 rounded-lg hover:bg-red-600 hover:text-white dark:text-red-400 dark:border-red-400 dark:hover:bg-red-700 transition">
+                            Options
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button id="closeModalBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeSettingsModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Edit Course Appearance
+    document.getElementById('editAppearanceBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseAppearanceModal(course);
+    });
+    
+    // Edit Course Information
+    document.getElementById('editInfoBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseInfoModal(course);
+    });
+    
+    // Edit Enrollment Options
+    document.getElementById('editEnrollmentBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showEnrollmentOptionsModal(course);
+    });
+    
+    // View Course Links (new)
+    document.getElementById('viewLinksBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseLinksModal(course);
+    });
+    
+    // Manage Students
+    document.getElementById('manageStudentsBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showManageStudentsModal(course);
+    });
+    
+    // Danger Zone
+    document.getElementById('dangerZoneBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showDangerZoneModal(course);
+    });
+}
+// Course Appearance Modal
+function showCourseAppearanceModal(course) {
+    const availableColors = [
+        '#5D5CDE', // Default blue-purple
+        '#3B82F6', // Blue
+        '#10B981', // Green
+        '#F59E0B', // Amber
+        '#EF4444', // Red
+        '#8B5CF6', // Purple
+        '#EC4899', // Pink
+        '#6366F1', // Indigo
+        '#14B8A6', // Teal
+        '#F97316', // Orange
+    ];
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Course Appearance</h3>
+                    <button id="closeAppearanceModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="appearanceForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Color</label>
+                        <div class="grid grid-cols-5 gap-3 mb-2">
+                            ${availableColors.map(color => `
+                                <button type="button" data-color="${color}" class="color-option w-full h-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500" style="background-color: ${color}; ${course.color === color ? 'box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);' : ''}"></button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div id="appearanceError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelAppearanceBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Track selected color
+    let selectedColor = course.color || '#5D5CDE';
+    
+    // Set up event listeners
+    document.getElementById('closeAppearanceModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    document.getElementById('cancelAppearanceBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    // Color selection
+    const colorOptions = document.querySelectorAll('.color-option');
+    colorOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            // Remove highlight from all options
+            colorOptions.forEach(opt => {
+                opt.style.boxShadow = '';
+            });
+            
+            // Highlight selected option
+            option.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.5)';
+            selectedColor = option.dataset.color;
+        });
+    });
+    
+    // Form submission
+    document.getElementById('appearanceForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const errorDiv = document.getElementById('appearanceError');
+        errorDiv.classList.add('hidden');
+        
+        try {
+            // Update course appearance
+            await courseService.updateCourse(course._id, {
+                color: selectedColor
+            });
+            
+            // Close modal and refresh course
+            document.body.removeChild(modalContainer);
+            showToast('Course appearance updated successfully!');
+            loadCourseDetail(course._id);
+        } catch (error) {
+            console.error('Error updating course appearance:', error);
+            errorDiv.textContent = error.message || 'Failed to update course appearance. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+// Course Information Modal
+function showCourseInfoModal(course) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Course Information</h3>
+                    <button id="closeInfoModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="infoForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="courseName" value="${course.name}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Code <span class="text-red-500">*</span></label>
+                        <input type="text" id="courseCode" value="${course.code}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Description</label>
+                        <textarea id="courseDescription" rows="4" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${course.description || ''}</textarea>
+                    </div>
+                    
+                    <div id="infoError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelInfoBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeInfoModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    document.getElementById('cancelInfoBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    // Form submission
+    document.getElementById('infoForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('courseName').value;
+        const code = document.getElementById('courseCode').value;
+        const description = document.getElementById('courseDescription').value;
+        const errorDiv = document.getElementById('infoError');
+        
+        errorDiv.classList.add('hidden');
+        
+        // Validate inputs
+        if (!name || !code) {
+            errorDiv.textContent = 'Course name and code are required.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        try {
+            // Update course information
+            await courseService.updateCourse(course._id, {
+                name,
+                code,
+                description
+            });
+            
+            // Close modal and refresh course
+            document.body.removeChild(modalContainer);
+            showToast('Course information updated successfully!');
+            loadCourseDetail(course._id);
+        } catch (error) {
+            console.error('Error updating course information:', error);
+            errorDiv.textContent = error.message || 'Failed to update course information. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+// Enrollment Options Modal
+function showEnrollmentOptionsModal(course) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Enrollment Options</h3>
+                    <button id="closeEnrollmentModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="enrollmentForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Current Enrollment Code</label>
+                        <div class="flex items-center">
+                            <input type="text" value="${course.enrollmentKey}" readonly class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            <button type="button" class="ml-2 text-primary dark:text-primaryLight" onclick="copyToClipboard('${course.enrollmentCode}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <button type="button" id="generateNewCodeBtn" class="px-4 py-2 border border-primary text-primary dark:border-primaryLight dark:text-primaryLight hover:bg-primary hover:text-white dark:hover:bg-primaryDark rounded-lg transition">
+                            Generate New Enrollment Code
+                        </button>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Note: This will invalidate the current enrollment code. Students will need the new code to enroll.
+                        </p>
+                    </div>
+                    
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                        <div class="flex items-center mb-3">
+                            <input type="checkbox" id="allowEnrollment" ${course.allowEnrollment !== false ? 'checked' : ''} class="mr-2">
+                            <label for="allowEnrollment" class="text-gray-700 dark:text-gray-300">Allow new student enrollments</label>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                            If disabled, new students won't be able to enroll in this course, even with the enrollment code.
+                        </p>
+                    </div>
+                    
+                    <div id="enrollmentError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelEnrollmentBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Track enrollment code
+    let enrollmentCode = course.enrollmentKey;
+    let codeChanged = false;
+    
+    // Set up event listeners
+    document.getElementById('closeEnrollmentModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    document.getElementById('cancelEnrollmentBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    // Generate new enrollment code
+    document.getElementById('generateNewCodeBtn').addEventListener('click', () => {
+        // Generate a random 6-character alphanumeric code
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let newCode = '';
+        for (let i = 0; i < 6; i++) {
+            newCode += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        
+        // Update the input field
+        const codeInput = modalContainer.querySelector('input[readonly]');
+        codeInput.value = newCode;
+        enrollmentCode = newCode;
+        codeChanged = true;
+    });
+    
+    // Form submission
+    document.getElementById('enrollmentForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const allowEnrollment = document.getElementById('allowEnrollment').checked;
+        const errorDiv = document.getElementById('enrollmentError');
+        
+        errorDiv.classList.add('hidden');
+        
+        try {
+            // Update course enrollment options
+            const updateData = {
+                allowEnrollment
+            };
+            
+            // Only include enrollmentCode if it was changed
+            if (codeChanged) {
+                updateData.enrollmentCode = enrollmentCode;
+            }
+            
+            await courseService.updateCourse(course._id, updateData);
+            
+            // Close modal and refresh course
+            document.body.removeChild(modalContainer);
+            showToast('Enrollment options updated successfully!');
+            loadCourseDetail(course._id);
+        } catch (error) {
+            console.error('Error updating enrollment options:', error);
+            errorDiv.textContent = error.message || 'Failed to update enrollment options. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+// Manage Students Modal
+function showManageStudentsModal(course) {
+    // Create loading modal first
+    const loadingModalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto animate-spin mb-4"></div>
+                <p class="text-gray-700 dark:text-gray-300">Loading student data...</p>
+            </div>
+        </div>
+    `;
+    
+    // Add loading modal to DOM
+    const loadingContainer = document.createElement('div');
+    loadingContainer.innerHTML = loadingModalHtml;
+    document.body.appendChild(loadingContainer);
+    
+    // Fetch detailed student data
+    fetchStudentData(course)
+        .then(students => {
+            // Remove loading modal
+            document.body.removeChild(loadingContainer);
+            
+            // Create and show the student management modal
+            displayStudentManagementModal(course, students);
+        })
+        .catch(error => {
+            console.error('Error fetching student data:', error);
+            
+            // Remove loading modal and show error
+            document.body.removeChild(loadingContainer);
+            showToast('Failed to load student data. Please try again.', 'error');
+            
+            // Go back to course settings
+            showCourseSettingsModal(course);
+        });
+}
+
+// Helper to fetch detailed student data
+async function fetchStudentData(course) {
+    // If students are already objects with complete data, use them
+    if (course.students && course.students.length > 0 && 
+        typeof course.students[0] === 'object' && course.students[0].firstName) {
+        return course.students;
+    }
+    
+    // Otherwise, fetch detailed data for each student
+    const studentIds = course.students || [];
+    const students = [];
+    
+    for (const id of studentIds) {
+        try {
+            const studentId = typeof id === 'object' ? id._id : id;
+            const response = await userService.getUserById(studentId);
+            students.push(response.data.user);
+        } catch (error) {
+            console.warn(`Could not fetch data for student ${id}:`, error);
+            // Add placeholder for missing student
+            students.push({
+                _id: typeof id === 'object' ? id._id : id,
+                firstName: 'Unknown',
+                lastName: 'Student',
+                email: 'N/A'
+            });
+        }
+    }
+    
+    return students;
+}
+
+// Display student management modal with fetched data
+function displayStudentManagementModal(course, students) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Manage Students</h3>
+                    <button id="closeStudentsModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="text-gray-700 dark:text-gray-300">
+                            <span class="font-medium">${students.length}</span> students enrolled
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="addStudentBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                                <i class="fas fa-user-plus mr-1"></i> Add Student
+                            </button>
+                            <div class="relative">
+                                <input type="text" id="searchStudents" placeholder="Search students..." class="pl-9 pr-4 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                <div class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <i class="fas fa-search text-gray-400"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-750">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="studentsTableBody">
+                                ${students.map(student => `
+                                    <tr class="student-row" data-id="${student._id}">
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center">
+                                                <img src="${getProfileImageUrl(student)}" alt="${student.firstName}" class="w-8 h-8 rounded-full mr-3">
+                                                <div>
+                                                    <p class="font-medium">${student.firstName} ${student.lastName}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                                            ${student.email}
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                                Enrolled
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <button class="remove-student-btn px-3 py-1 text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                                <i class="fas fa-user-minus mr-1"></i> Remove
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end pt-2">
+                    <button id="closeStudentsModalBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeStudentsModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    document.getElementById('closeStudentsModalBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    // Add student button
+    document.getElementById('addStudentBtn').addEventListener('click', () => {
+        // Hide this modal temporarily (don't remove)
+        modalContainer.style.display = 'none';
+        
+        // Show add student modal
+        showAddStudentModal(course, modalContainer);
+    });
+    
+    // Search functionality
+    document.getElementById('searchStudents').addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('.student-row');
+        
+        rows.forEach(row => {
+            const studentName = row.querySelector('.font-medium').textContent.toLowerCase();
+            const studentEmail = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            
+            if (studentName.includes(searchTerm) || studentEmail.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+    
+    // Remove student buttons
+    document.querySelectorAll('.remove-student-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const row = btn.closest('.student-row');
+            const studentId = row.dataset.id;
+            const studentName = row.querySelector('.font-medium').textContent;
+            
+            if (confirm(`Are you sure you want to remove ${studentName} from this course?`)) {
+                try {
+                    // Call API to remove student
+                    await courseService.removeStudentFromCourse(course._id, studentId);
+                    
+                    // Remove row from table
+                    row.remove();
+                    
+                    // Update count
+                    const countEl = modalContainer.querySelector('.text-gray-700.dark:text-gray-300 .font-medium');
+                    countEl.textContent = parseInt(countEl.textContent) - 1;
+                    
+                    showToast(`${studentName} has been removed from the course.`);
+                } catch (error) {
+                    console.error('Error removing student:', error);
+                    showToast('Failed to remove student. Please try again.', 'error');
+                }
+            }
+        });
+    });
+}
+
+// Add Student Modal
+function showAddStudentModal(course, parentModal) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Add Student to Course</h3>
+                    <button id="closeAddStudentModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="addStudentForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Student Email <span class="text-red-500">*</span></label>
+                        <input type="email" id="studentEmail" required placeholder="Enter student's email address" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    </div>
+                    
+                    <div id="addStudentError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelAddStudentBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Add Student
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    const closeAddStudentModal = () => {
+        document.body.removeChild(modalContainer);
+        parentModal.style.display = '';
+    };
+    
+    document.getElementById('closeAddStudentModal').addEventListener('click', closeAddStudentModal);
+    document.getElementById('cancelAddStudentBtn').addEventListener('click', closeAddStudentModal);
+    
+    // Form submission
+    document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('studentEmail').value;
+        const errorDiv = document.getElementById('addStudentError');
+        
+        errorDiv.classList.add('hidden');
+        
+        if (!email) {
+            errorDiv.textContent = 'Student email is required.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        try {
+            // Call API to add student by email
+            const response = await courseService.addStudentToCourse(course._id, { email });
+            
+            // Close modals and refresh course view
+            document.body.removeChild(modalContainer);
+            document.body.removeChild(parentModal);
+            
+            showToast('Student added to the course successfully!');
+            loadCourseDetail(course._id);
+        } catch (error) {
+            console.error('Error adding student:', error);
+            errorDiv.textContent = error.message || 'Failed to add student. Please check the email and try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+// Danger Zone Modal
+function showDangerZoneModal(course) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-red-600 dark:text-red-400">Danger Zone</h3>
+                    <button id="closeDangerModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="p-4 border border-red-300 dark:border-red-700 rounded-lg">
+                        <h4 class="font-medium text-red-600 dark:text-red-400">Archive Course</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                            Archiving a course will make it read-only for all students. No new submissions or discussions will be allowed.
+                        </p>
+                        <button id="archiveCourseBtn" class="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition">
+                            Archive Course
+                        </button>
+                    </div>
+                    
+                    <div class="p-4 border border-red-300 dark:border-red-700 rounded-lg">
+                        <h4 class="font-medium text-red-600 dark:text-red-400">Delete Course</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                            This action is irreversible. All course data, assignments, resources, and discussions will be permanently deleted.
+                        </p>
+                        <button id="deleteCourseBtn" class="mt-3 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+                            Delete Course
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end mt-4">
+                    <button id="cancelDangerBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    const closeDangerModal = () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    };
+    
+    document.getElementById('closeDangerModal').addEventListener('click', closeDangerModal);
+    document.getElementById('cancelDangerBtn').addEventListener('click', closeDangerModal);
+    
+    // Archive course
+    document.getElementById('archiveCourseBtn').addEventListener('click', async () => {
+        if (confirm(`Are you sure you want to archive ${course.name}? This will make the course read-only.`)) {
+            try {
+                // Call API to archive course
+                await courseService.updateCourse(course._id, { isArchived: true });
+                
+                // Close modal and refresh course
+                document.body.removeChild(modalContainer);
+                showToast('Course archived successfully!');
+                loadCourseDetail(course._id);
+            } catch (error) {
+                console.error('Error archiving course:', error);
+                showToast('Failed to archive course. Please try again.', 'error');
+            }
+        }
+    });
+    
+    // Delete course
+    document.getElementById('deleteCourseBtn').addEventListener('click', async () => {
+        const confirmText = `DELETE ${course.code}`;
+        const userInput = prompt(`This action is IRREVERSIBLE. All course data, assignments, discussions, and resources will be permanently deleted.\n\nTo confirm, type "${confirmText}" below:`);
+        
+        if (userInput === confirmText) {
+            try {
+                // Call API to delete course
+                await courseService.deleteCourse(course._id);
+                
+                // Close modal and go back to courses view
+                document.body.removeChild(modalContainer);
+                showToast('Course deleted successfully!');
+                loadView('courses');
+            } catch (error) {
+                console.error('Error deleting course:', error);
+                showToast('Failed to delete course. Please try again.', 'error');
+            }
+        } else if (userInput !== null) {
+            // User entered incorrect text
+            showToast('Deletion cancelled: Confirmation text did not match.', 'error');
+        }
+    });
+}
+
+// Generate Course Link Modal
+function showGenerateCourseLinkModal(courseId) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Generate Enrollment Link</h3>
+                    <button id="closeGenerateLinkModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="generateLinkForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Expires in (hours)</label>
+                        <div class="flex items-center">
+                            <input type="number" id="expiresIn" min="1" value="168" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            <span class="ml-2 text-gray-600 dark:text-gray-400">hours</span>
+                        </div>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Default is 168 hours (7 days). Enter 0 for no expiration.
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Maximum uses (optional)</label>
+                        <input type="number" id="maxUses" min="0" placeholder="Unlimited" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Leave blank for unlimited uses.
+                        </p>
+                    </div>
+                    
+                    <div id="generateLinkError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelGenerateLinkBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Generate Link
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeGenerateLinkModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('cancelGenerateLinkBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Form submission
+    document.getElementById('generateLinkForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const expiresIn = parseInt(document.getElementById('expiresIn').value) || 0;
+        const maxUses = parseInt(document.getElementById('maxUses').value) || null;
+        const errorDiv = document.getElementById('generateLinkError');
+        
+        try {
+            errorDiv.classList.add('hidden');
+            
+            const options = {};
+            if (expiresIn > 0) options.expiresIn = expiresIn;
+            if (maxUses > 0) options.maxUses = maxUses;
+            
+            // Generate course link
+            const response = await courseLinkService.generateCourseLink(courseId, options);
+            const link = response.data.courseLink;
+            
+            // Show success with the generated link
+            document.body.removeChild(modalContainer);
+            showCourseLinkModal(link);
+        } catch (error) {
+            console.error('Error generating course link:', error);
+            errorDiv.textContent = error.message || 'Failed to generate link. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+// Show the generated course link
+function showCourseLinkModal(link) {
+    const baseUrl = window.location.origin + window.location.pathname;
+    const linkUrl = `${baseUrl}?join=${link.token}`;
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Course Link Generated</h3>
+                    <button id="closeLinkSuccessModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="p-4 bg-green-100 dark:bg-green-900/20 border-l-4 border-green-500 text-green-700 dark:text-green-300">
+                        <p><i class="fas fa-check-circle mr-2"></i> Link generated successfully!</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Share this link with students:</label>
+                        <div class="flex items-center">
+                            <input type="text" value="${linkUrl}" readonly class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            <button type="button" class="ml-2 text-primary dark:text-primaryLight" onclick="copyToClipboard('${linkUrl}')">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-sm text-gray-600 dark:text-gray-400">
+                        <p><span class="font-medium">Expires:</span> ${link.expiresAt ? formatDate(link.expiresAt) : 'Never'}</p>
+                        <p><span class="font-medium">Max uses:</span> ${link.maxUses || 'Unlimited'}</p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end mt-4">
+                    <button id="closeLinkModalBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    const closeLinkModal = () => {
+        document.body.removeChild(modalContainer);
+    };
+    
+    document.getElementById('closeLinkSuccessModal').addEventListener('click', closeLinkModal);
+    document.getElementById('closeLinkModalBtn').addEventListener('click', closeLinkModal);
+}  
+// Add this new function to view and manage course links
+function showCourseLinksModal(course) {
+    // Create loading state first
+    const loadingModalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto animate-spin mb-4"></div>
+                <p class="text-gray-700 dark:text-gray-300">Loading course links...</p>
+            </div>
+        </div>
+    `;
+    
+    // Add loading modal to DOM
+    const loadingContainer = document.createElement('div');
+    loadingContainer.innerHTML = loadingModalHtml;
+    document.body.appendChild(loadingContainer);
+    
+    // Fetch course links
+    courseLinkService.getCourseLinks(course._id)
+        .then(response => {
+            const links = response.data.courseLinks || [];
+            
+            // Remove loading modal
+            document.body.removeChild(loadingContainer);
+            
+            // Create and show the course links modal
+            displayCourseLinksModal(course, links);
+        })
+        .catch(error => {
+            console.error('Error fetching course links:', error);
+            
+            // Remove loading modal and show error
+            document.body.removeChild(loadingContainer);
+            showToast('Failed to load course links. Please try again.', 'error');
+            
+            // Go back to course settings
+            showCourseSettingsModal(course);
+        });
+}
+
+// Display course links modal with fetched data
+function displayCourseLinksModal(course, links) {
+    // Format the base URL for sharing
+    const baseUrl = window.location.origin + window.location.pathname;
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Course Enrollment Links</h3>
+                    <button id="closeLinksModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <p class="text-gray-600 dark:text-gray-300">Manage enrollment links for ${course.name}</p>
+                        <button id="generateNewLinkBtn" class="px-3 py-1.5 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            <i class="fas fa-plus mr-1"></i> Generate New Link
+                        </button>
+                    </div>
+                    
+                    ${links.length === 0 ? `
+                        <div class="bg-gray-50 dark:bg-gray-750 p-8 rounded-lg text-center">
+                            <i class="fas fa-link text-gray-400 text-4xl mb-3"></i>
+                            <p class="text-gray-500 dark:text-gray-400">No enrollment links have been generated yet.</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Generate a link to allow easy enrollment without the enrollment code.
+                            </p>
+                        </div>
+                    ` : `
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-gray-750">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Expires</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Uses</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Link</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    ${links.map(link => {
+                                        const isExpired = new Date(link.expiresAt) < new Date();
+                                        const isMaxedOut = link.maxUses && link.usedCount >= link.maxUses;
+                                        const isRevoked = !link.isActive;
+                                        
+                                        let statusBadge = '';
+                                        if (isRevoked) {
+                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Revoked</span>`;
+                                        } else if (isExpired) {
+                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">Expired</span>`;
+                                        } else if (isMaxedOut) {
+                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">Max Uses Reached</span>`;
+                                        } else {
+                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Active</span>`;
+                                        }
+                                        
+                                        const linkUrl = `${baseUrl}?join=${link.token}`;
+                                        
+                                        return `
+                                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 link-row ${isRevoked || isExpired || isMaxedOut ? 'opacity-60' : ''}" data-id="${link._id}">
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    ${formatDate(link.createdAt)}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    ${link.expiresAt ? formatDate(link.expiresAt) : 'Never'}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    ${link.usedCount || 0} ${link.maxUses ? `/ ${link.maxUses}` : ''}
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap">
+                                                    ${statusBadge}
+                                                </td>
+                                                <td class="px-4 py-4 text-sm">
+                                                    <div class="flex items-center">
+                                                        <span class="truncate max-w-[150px] mr-2">${linkUrl}</span>
+                                                        <button class="copy-link-btn text-primary dark:text-primaryLight" data-link="${linkUrl}">
+                                                            <i class="fas fa-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap">
+                                                    ${!isRevoked ? `
+                                                        <button class="revoke-link-btn px-3 py-1 text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300" data-id="${link._id}">
+                                                            <i class="fas fa-ban mr-1"></i> Revoke
+                                                        </button>
+                                                    ` : ''}
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+                
+                <div class="flex justify-end mt-4">
+                    <button id="backToSettingsBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Back to Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeLinksModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    document.getElementById('backToSettingsBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showCourseSettingsModal(course);
+    });
+    
+    // Generate new link button
+    document.getElementById('generateNewLinkBtn')?.addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showGenerateCourseLinkModal(course._id);
+    });
+    
+    // Copy link buttons
+    document.querySelectorAll('.copy-link-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const link = btn.dataset.link;
+            copyToClipboard(link);
+        });
+    });
+    
+    // Revoke link buttons
+    document.querySelectorAll('.revoke-link-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const linkId = btn.dataset.id;
+            
+            if (confirm('Are you sure you want to revoke this link? Students will no longer be able to use it to join the course.')) {
+                try {
+                    await courseLinkService.revokeCourseLink(linkId);
+                    showToast('Link revoked successfully!');
+                    
+                    // Refresh the modal with updated data
+                    document.body.removeChild(modalContainer);
+                    showCourseLinksModal(course);
+                } catch (error) {
+                    console.error('Error revoking link:', error);
+                    showToast('Failed to revoke link. Please try again.', 'error');
+                }
+            }
+        });
+    });
+}
 // Discussion detail view
 async function loadDiscussionDetail(discussionId) {
     // Fetch discussion data
@@ -1580,6 +3664,9 @@ async function loadDiscussions() {
         if (emptyStateDiscussionBtn) {
             emptyStateDiscussionBtn.addEventListener('click', () => showNewDiscussionModal());
         }
+        const newDiscussionBtn = document.getElementById('newDscussionBtn');
+        if (newDiscussionBtn) { 
+            newDiscussionBtn.addEventListener('click', () => showNewDiscussionModal());
         
         const startFirstDiscussionBtn = document.getElementById('startFirstDiscussionBtn');
         if (startFirstDiscussionBtn) {
@@ -1627,7 +3714,7 @@ async function loadDiscussions() {
                 applyCourseFilter();
             });
         });
-        
+    }
         // Course filter
         const courseFilter = document.getElementById('courseFilter');
         if (courseFilter) {
@@ -1650,8 +3737,7 @@ async function loadDiscussions() {
                 item.style.display = (item.classList.contains('hidden') || item.classList.contains('hidden-by-course')) ? 'none' : '';
             });
         }
-        const newDiscussionBtn = document.getElementById('newDscussionBtn');
-        if (newDiscussionBtn) { addEventListener('click', () => showNewDiscussionModal()); }
+         
         // Sort dropdown
         const discussionSort = document.getElementById('discussionSort');
         if (discussionSort) {
@@ -3533,235 +5619,3 @@ function showChangePasswordModal() {
         }
     });
 }
-
-// Load course links
-async function loadCourseLinks(courseId) {
-    const container = document.getElementById('courseLinksContainer');
-    if (!container) return;
-    
-    try {
-        const response = await courseLinkService.getCourseLinks(courseId);
-        const links = response.data.courseLinks;
-        
-        if (links.length === 0) {
-            container.innerHTML = `
-                <div class="text-center py-4">
-                    <p class="text-gray-500 dark:text-gray-400">No enrollment links generated yet.</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Generate a link to allow students to join this course without an enrollment key.
-                    </p>
-                </div>
-            `;
-            return;
-        }
-        
-        container.innerHTML = `
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead>
-                        <tr>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Link</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Expires</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Uses</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                        ${links.map(link => {
-                            const isValid = link.isActive && new Date(link.expiresAt) > new Date() && 
-                                           (!link.maxUses || link.usedCount < link.maxUses);
-                            const status = !link.isActive ? 'Revoked' : 
-                                          new Date(link.expiresAt) <= new Date() ? 'Expired' :
-                                          (link.maxUses && link.usedCount >= link.maxUses) ? 'Max uses reached' : 'Active';
-                            const statusClass = status === 'Active' ? 'text-green-500' : 'text-red-500';
-                            
-                            const linkUrl = window.location.origin + '/join?token=' + link.token;
-                            
-                            return `
-                                <tr>
-                                    <td class="px-4 py-3">
-                                        <div class="flex items-center">
-                                            <input type="text" value="${linkUrl}" readonly class="bg-gray-50 dark:bg-gray-700 text-sm p-1 rounded border border-gray-300 dark:border-gray-600 w-32 md:w-48" id="link-${link._id}">
-                                            <button class="ml-2 text-primary dark:text-primaryLight" onclick="copyToClipboard('link-${link._id}')">
-                                                <i class="fas fa-copy"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-sm">${formatDate(link.createdAt)}</td>
-                                    <td class="px-4 py-3 text-sm">${formatDate(link.expiresAt)}</td>
-                                    <td class="px-4 py-3 text-sm">${link.usedCount}${link.maxUses ? '/' + link.maxUses : ''}</td>
-                                    <td class="px-4 py-3 text-sm ${statusClass}">${status}</td>
-                                    <td class="px-4 py-3 text-sm">
-                                        ${isValid ? `
-                                            <button class="text-red-500 hover:text-red-700" onclick="revokeCourseLink('${link._id}')">
-                                                Revoke
-                                            </button>
-                                        ` : ''}
-                                    </td>
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    } catch (error) {
-        console.error('Error loading course links:', error);
-        container.innerHTML = `
-            <div class="text-center py-4">
-                <p class="text-red-500">Error loading enrollment links</p>
-                <button class="mt-2 text-primary dark:text-primaryLight hover:underline" onclick="loadCourseLinks('${courseId}')">
-                    Try again
-                </button>
-            </div>
-        `;
-    }
-}
-
-// Show modal to generate a new course link
-function showGenerateLinkModal() {
-    const modalHtml = `
-        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">Generate Enrollment Link</h3>
-                    <button id="closeLinkModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <form id="generateLinkForm" class="space-y-4">
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Expires in (hours)</label>
-                        <div class="flex items-center">
-                            <input type="number" id="expiresIn" min="1" value="168" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                            <span class="ml-2 text-gray-600 dark:text-gray-400">hours</span>
-                        </div>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Default is 168 hours (7 days). Enter 0 for no expiration.
-                        </p>
-                    </div>
-                    <div>
-                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Maximum uses (optional)</label>
-                        <input type="number" id="maxUses" min="0" placeholder="Unlimited" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Leave blank for unlimited uses.
-                        </p>
-                    </div>
-                    <div id="generateLinkError" class="text-red-500 hidden"></div>
-                    <div>
-                        <button type="submit" class="w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                            Generate Link
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    `;
-    
-    const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalHtml;
-    document.body.appendChild(modalContainer);
-    
-    // Setup event listeners
-    document.getElementById('closeLinkModal').addEventListener('click', () => {
-        document.body.removeChild(modalContainer);
-    });
-    
-    document.getElementById('generateLinkForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const expiresIn = parseInt(document.getElementById('expiresIn').value) || 0;
-        const maxUses = parseInt(document.getElementById('maxUses').value) || null;
-        const errorDiv = document.getElementById('generateLinkError');
-        
-        try {
-            errorDiv.classList.add('hidden');
-            
-            const options = {};
-            if (expiresIn > 0) options.expiresIn = expiresIn;
-            if (maxUses > 0) options.maxUses = maxUses;
-            
-            await courseLinkService.generateCourseLink(currentCourse._id, options);
-            
-            document.body.removeChild(modalContainer);
-            showToast('Enrollment link generated successfully!');
-            
-            // Reload course links
-            loadCourseLinks(currentCourse._id);
-        } catch (error) {
-            errorDiv.textContent = error.message;
-            errorDiv.classList.remove('hidden');
-        }
-    });
-}
-
-// Revoke a course link
-async function revokeCourseLink(linkId) {
-    if (!confirm('Are you sure you want to revoke this enrollment link? This action cannot be undone.')) {
-        return;
-    }
-    
-    try {
-        await courseLinkService.revokeCourseLink(linkId);
-        showToast('Enrollment link revoked successfully');
-        
-        // Reload course links
-        loadCourseLinks(currentCourse._id);
-    } catch (error) {
-        showToast(`Failed to revoke link: ${error.message}`, 'error');
-    }
-}
-
-// Copy text to clipboard
-function copyToClipboard(elementId) {
-    const element = document.getElementById(elementId);
-    element.select();
-    document.execCommand('copy');
-    
-    // Show toast notification
-    showToast('Link copied to clipboard!');
-}
-// Add to js/views.js
-// Function to handle joining a course via link
-async function joinCourseViaLink(token) {
-    // If no token is provided, do nothing
-    if (!token) {
-      showToast('No join token provided.', 'error');
-      return;
-    }
-  
-    // If the user is not logged in, save the token and redirect to login.
-    if (!currentUser) {
-      localStorage.setItem('pendingJoinToken', token);
-      showToast('Please log in to join the course.', 'error');
-      loadLoginPage();
-      return;
-    }
-  
-    // At this point, the user is logged in.
-    showLoading();
-    
-    try {
-      // Attempt to join the course via the secure link.
-      const response = await courseLinkService.joinViaLink(token);
-      // If the call is successful, display success toast and load courses view.
-      showToast('Successfully joined the course!');
-      loadView('courses');
-    } catch (error) {
-      // If an error occurs, display an error message in the content area.
-      content.innerHTML = `
-        <div class="flex flex-col items-center justify-center min-h-[50vh] p-4">
-            <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4 w-full max-w-md">
-                <p class="font-medium">Error joining course</p>
-                <p>${error.message || 'The link may be invalid, expired, or has reached its maximum uses.'}</p>
-            </div>
-            <button onclick="loadView('courses')" class="mt-4 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                Back to Courses
-            </button>
-        </div>
-      `;
-    }
-  }
-  

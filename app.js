@@ -57,7 +57,7 @@ const limiter = rateLimit({
   max: 100, 
   windowMs: 60 * 60 * 1000, // 1 hour
   standardHeaders: true, // Sends `RateLimit-*` headers
-  legacyHeaders: false,  // Disables deprecated `X-RateLimit-*` headers
+  legacyHeaders: true,  // Disables deprecated `X-RateLimit-*` headers
   message: "Too many requests from this IP, please try again in an hour!"
 });
 

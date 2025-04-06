@@ -1,22 +1,20 @@
-// models/CourseLink.js
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const courseLinkSchema = new mongoose.Schema({
   course: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
     required: [true, 'A course link must belong to a course']
   },
   creator: {
-    type: mongoose.Schema.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: [true, 'A course link must have a creator']
   },
   token: {
     type: String,
-    unique: true,
-    // Remove required: true here since we'll generate it
+    unique: true
   },
   expiresAt: {
     type: Date,

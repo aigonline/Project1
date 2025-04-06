@@ -30,9 +30,25 @@ const courseSchema = new mongoose.Schema({
     type: String,
     default: 'default-course.jpg'
   },
-  enrollmentKey: {
+  enrollmentCode: {
     type: String,
-    select: false
+    unique: true
+  },
+  allowEnrollment: {
+    type: Boolean,
+    default: true
+  },
+  isArchived: {
+    type: Boolean,
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   },
   students: [{
     type: mongoose.Schema.ObjectId,
@@ -79,6 +95,19 @@ courseSchema.pre(/^find/, function(next) {
   next();
 });
 
+// Generate enrollment code before save
+courseSchema.pre('save', function(next) {
+  if (this.isNew && !this.enrollmentCode) {
+    // Generate a random 6-character alphanumeric code
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    this.enrollmentCode = code;
+  }
+  next();
+});
 const Course = mongoose.model('Course', courseSchema);
 
 module.exports = Course;

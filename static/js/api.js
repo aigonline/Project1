@@ -105,6 +105,35 @@ const courseService = {
             body: JSON.stringify({ courseId, enrollmentKey }),
         });
     },
+    // Update course
+    updateCourse: async (courseId, data) => {
+        return await fetchWithAuth(`/courses/${courseId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    // Add student to course (by email)
+    addStudentToCourse: async (courseId, data) => {
+        return await fetchWithAuth(`/courses/${courseId}/students`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    // Remove student from course
+    removeStudentFromCourse: async (courseId, studentId) => {
+        return await fetchWithAuth(`/courses/${courseId}/students/${studentId}`, {
+            method: 'DELETE'
+        });
+    },
+    
+    // Delete course
+    deleteCourse: async (courseId) => {
+        return await fetchWithAuth(`/courses/${courseId}`, {
+            method: 'DELETE'
+        });
+    },
 
     unenrollFromCourse: async (courseId) => {
         return await fetchWithAuth(`/courses/${courseId}/unenroll`, {
@@ -182,10 +211,10 @@ const assignmentService = {
 
 // Resources service
 const resourceService = {
-    createResource: async (courseId, resourceData) => {
+    createResource: async (courseId, formData) => {
         return await fetchWithAuth(`/courses/${courseId}/resources`, {
             method: 'POST',
-            body: resourceData // Using FormData directly
+            body: formData // Using FormData directly
             // No Content-Type header - browser sets this automatically for FormData
         });
     },
@@ -281,6 +310,10 @@ const userService = {
             method: 'PATCH',
             body: JSON.stringify(userData)
         });
+    },
+
+    getUserById: async (userId) => {
+        return await fetchWithAuth(`/users/${userId}`);
     },
 
     updatePassword: async (passwordData) => {

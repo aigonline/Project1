@@ -1,4 +1,3 @@
-// controllers/courseLinkController.js
 const CourseLink = require('../models/courseLink.js');
 const Course = require('../models/course.js');
 const User = require('../models/user.js');
@@ -17,10 +16,7 @@ exports.generateCourseLink = catchAsync(async (req, res, next) => {
   }
   
   // Check if user is the course instructor or an admin
-  if (
-    req.user.role !== 'admin' && 
-    course.instructor.id.toString() !== req.user.id.toString()
-  ) {
+  if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
     return next(new AppError('You do not have permission to generate links for this course', 403));
   }
   
@@ -59,10 +55,7 @@ exports.getCourseLinks = catchAsync(async (req, res, next) => {
   }
   
   // Check if user is the course instructor or an admin
-  if (
-    req.user.role !== 'admin' && 
-    course.instructor.id.toString() !== req.user.id.toString()
-  ) {
+  if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
     return next(new AppError('You do not have permission to view links for this course', 403));
   }
   
@@ -91,7 +84,7 @@ exports.revokeCourseLink = catchAsync(async (req, res, next) => {
   
   // Check if user is the course instructor or an admin
   if (
-    req.user.role !== 'admin' && 
+    req.user.role !== 'instructor' && 
     courseLink.course.instructor.toString() !== req.user.id.toString()
   ) {
     return next(new AppError('You do not have permission to revoke this link', 403));
@@ -111,10 +104,6 @@ exports.revokeCourseLink = catchAsync(async (req, res, next) => {
 
 // Join course via link
 exports.joinCourseViaLink = catchAsync(async (req, res, next) => {
-  if (!req.user) {
-    // Optionally, redirect to login with a query parameter indicating the secure link token
-    return res.redirect(`/login?redirect=/join/${req.params.token}`);
-  }
   const { token } = req.params;
   
   // Find the link by token
@@ -139,6 +128,11 @@ exports.joinCourseViaLink = catchAsync(async (req, res, next) => {
   // Get the course
   const course = courseLink.course;
   
+  // Check if course allows enrollment
+  if (course.allowEnrollment === false) {
+    return next(new AppError('This course is not accepting new enrollments', 400));
+  }
+  
   // Check if user is already enrolled
   if (course.students.includes(req.user.id)) {
     return next(new AppError('You are already enrolled in this course', 400));
@@ -150,6 +144,7 @@ exports.joinCourseViaLink = catchAsync(async (req, res, next) => {
   
   // Add course to user's enrolled courses
   const user = await User.findById(req.user.id);
+  user.enrolledCourses = user.enrolledCourses || [];
   user.enrolledCourses.push(course._id);
   await user.save();
   

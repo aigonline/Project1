@@ -43,63 +43,201 @@ exports.getCourse = catchAsync(async (req, res, next) => {
 });
 
 // Create new course
+// Create a new course
 exports.createCourse = catchAsync(async (req, res, next) => {
-    if (!req.body.instructor) req.body.instructor = req.user.id;
-
+    // Check if the user is an instructor or admin
     if (req.user.role !== 'instructor' && req.user.role !== 'admin') {
-        return next(new AppError('Only instructors and admins can create courses', 403));
+      return next(new AppError('Only instructors can create courses', 403));
     }
-
-    const newCourse = await Course.create(req.body);
-
+    
+    // Set the current user as the instructor
+    req.body.instructor = req.user.id;
+    
+    // Create the course
+    const newCourse = await Course.create({
+      name: req.body.name,
+      code: req.body.code,
+      description: req.body.description,
+      instructor: req.user.id,
+      color: req.body.color || '#5D5CDE' // Support for course color
+    });
+    
     res.status(201).json({
-        status: 'success',
-        data: { course: newCourse }
+      status: 'success',
+      data: {
+        course: newCourse
+      }
     });
-});
+  });
 
-// Update course
+// Update course details
 exports.updateCourse = catchAsync(async (req, res, next) => {
-    const course = await Course.findById(req.params.id);
-
+    const { id } = req.params;
+    
+    // Get the course
+    const course = await Course.findById(id);
     if (!course) {
-        return next(new AppError('No course found with that ID', 404));
+      return next(new AppError('No course found with that ID', 404));
     }
-
-    if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
-        return next(new AppError('You do not have permission to update this course', 403));
+    
+    // Check if user is authorized (instructor or admin)
+    if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
+      return next(new AppError('You do not have permission to update this course', 403));
     }
-
-    const updatedCourse = await Course.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
-        runValidators: true
+    
+    // Fields that can be updated
+    const allowedFields = [
+      'name', 
+      'code', 
+      'description', 
+      'color', 
+      'enrollmentCode', 
+      'allowEnrollment',
+      'isArchived'
+    ];
+    
+    // Filter request body to only include allowed fields
+    const filteredBody = {};
+    Object.keys(req.body).forEach(key => {
+      if (allowedFields.includes(key)) {
+        filteredBody[key] = req.body[key];
+      }
     });
-
+    
+    // Update the course
+    const updatedCourse = await Course.findByIdAndUpdate(id, filteredBody, {
+      new: true,
+      runValidators: true
+    });
+    
     res.status(200).json({
-        status: 'success',
-        data: { course: updatedCourse }
+      status: 'success',
+      data: {
+        course: updatedCourse
+      }
     });
-});
-
-// Delete course
-exports.deleteCourse = catchAsync(async (req, res, next) => {
-    const course = await Course.findById(req.params.id);
-
+  });
+  
+  // Add a student to a course by email
+  exports.addStudentToCourse = catchAsync(async (req, res, next) => {
+    const { id } = req.params;
+    const { email } = req.body;
+    
+    // Check if email was provided
+    if (!email) {
+      return next(new AppError('Email is required', 400));
+    }
+    
+    // Get the course
+    const course = await Course.findById(id);
     if (!course) {
-        return next(new AppError('No course found with that ID', 404));
+      return next(new AppError('No course found with that ID', 404));
     }
-
+    
+    // Check if user is authorized (instructor or admin)
     if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
-        return next(new AppError('You do not have permission to delete this course', 403));
+      return next(new AppError('You do not have permission to manage students in this course', 403));
     }
-
-    await Course.findByIdAndDelete(req.params.id);
-
-    res.status(204).json({
-        status: 'success',
-        data: null
+    
+    // Find the student user by email
+    const student = await User.findOne({ email: email.toLowerCase() });
+    if (!student) {
+      return next(new AppError('No user found with that email address', 404));
+    }
+    
+    // Check if the user is already enrolled
+    if (course.students.includes(student._id)) {
+      return next(new AppError('Student is already enrolled in this course', 400));
+    }
+    
+    // Add the student to the course
+    course.students.push(student._id);
+    await course.save();
+    
+    // Add the course to the student's enrolled courses
+    student.enrolledCourses = student.enrolledCourses || [];
+    student.enrolledCourses.push(course._id);
+    await student.save();
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Student added to course successfully'
     });
-});
+  });
+  
+  // Remove a student from a course
+  exports.removeStudentFromCourse = catchAsync(async (req, res, next) => {
+    const { id, studentId } = req.params;
+    
+    // Get the course
+    const course = await Course.findById(id);
+    if (!course) {
+      return next(new AppError('No course found with that ID', 404));
+    }
+    
+    // Check if user is authorized (instructor or admin)
+    if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
+      return next(new AppError('You do not have permission to manage students in this course', 403));
+    }
+    
+    // Find the student
+    const student = await User.findById(studentId);
+    if (!student) {
+      return next(new AppError('No student found with that ID', 404));
+    }
+    
+    // Remove student from course
+    course.students = course.students.filter(
+      id => id.toString() !== studentId.toString()
+    );
+    await course.save();
+    
+    // Remove course from student's enrolled courses
+    if (student.enrolledCourses) {
+      student.enrolledCourses = student.enrolledCourses.filter(
+        id => id.toString() !== course._id.toString()
+      );
+      await student.save();
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Student removed from course successfully'
+    });
+  });
+  
+  // Delete a course
+  exports.deleteCourse = catchAsync(async (req, res, next) => {
+    const { id } = req.params;
+    
+    // Get the course
+    const course = await Course.findById(id);
+    if (!course) {
+      return next(new AppError('No course found with that ID', 404));
+    }
+    
+    // Check if user is authorized (instructor or admin)
+    if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
+      return next(new AppError('You do not have permission to delete this course', 403));
+    }
+    
+    // Delete the course
+    await Course.findByIdAndDelete(id);
+    
+    // Remove course from all enrolled students
+    await User.updateMany(
+      { enrolledCourses: id },
+      { $pull: { enrolledCourses: id } }
+    );
+    
+    // Optional: Delete associated resources, assignments, discussions, etc.
+    // Depends on your data model and cascading delete requirements
+    
+    res.status(204).json({
+      status: 'success',
+      data: null
+    });
+  });
 
 // Enroll in course
 exports.enrollInCourse = catchAsync(async (req, res, next) => {

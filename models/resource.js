@@ -19,10 +19,15 @@ const resourceSchema = new mongoose.Schema({
     ref: 'Course',
     required: [true, 'A resource must belong to a course']
   },
-  type: {
+  ategory: { // Changed from 'type' to 'category'
     type: String,
-    enum: ['PDF', 'PPT', 'DOC', 'Video', 'Link', 'Other'],
-    default: 'Other'
+    enum: ['lecture', 'reading', 'exercise', 'assignment', 'reference', 'other'],
+    required: [true, 'Category is required'],
+    default: 'other'
+  },
+  visibility: { // Changed from 'isPublished' to match client
+    type: Boolean,
+    default: true
   },
   file: {
     fileName: String,

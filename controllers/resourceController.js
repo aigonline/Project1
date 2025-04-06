@@ -72,44 +72,50 @@ exports.getResource = catchAsync(async (req, res, next) => {
 // Create new resource
 exports.createResource = catchAsync(async (req, res, next) => {
   const { courseId } = req.params;
-  // Check if the course exists
-  const course = await Course.findById(courseId);
-  if (!course) {
-    return next(new AppError('No course found with that ID', 404));
+  const { title, description, category, isVisible, link } = req.body;
+
+  // Validate required fields
+  if (!title || !category) {
+    return next(new AppError('Title and category are required', 400));
   }
-  
-  // Set user as the resource creator
-  req.body.addedBy = req.user.id;
-  
-  // Determine if a file was uploaded or a link was provided
+
+  // Create base resource data
+  const resourceData = {
+    title,
+    description: description || '',
+    category,
+    visibility: isVisible === 'true',
+    course: courseId,
+    addedBy: req.user.id
+  };
+
+  // Handle file/link validation
   if (req.file) {
-    // File resource: attach file details
-    req.body.file = {
+    resourceData.file = {
       fileName: req.file.originalname,
       filePath: req.file.path,
       fileType: req.file.mimetype,
       fileSize: req.file.size
     };
-  } else if (req.body.link) {
-    // Link resource: validate URL
-    if (!validator.isURL(req.body.link)) {
-      return next(new AppError('Invalid URL provided', 400));
+  } else if (link) {
+    if (!validator.isURL(link)) {
+      return next(new AppError('Invalid resource URL', 400));
     }
-    // If a valid link is provided, ensure file field is not set
-    req.body.link = req.body.link;
+    resourceData.link = link;
   } else {
-    // If neither file nor link is provided, return an error
-    return next(new AppError('Please provide either a file or a link for the resource', 400));
+    return next(new AppError('File or link required', 400));
   }
-  
-  // Create the resource in the database
-  const newResource = await Resource.create(req.body);
-  
+
+  // Create and link to course
+  const resource = await Resource.create(resourceData);
+  await Course.findByIdAndUpdate(
+    courseId,
+    { $addToSet: { resources: resource._id } }
+  );
+
   res.status(201).json({
     status: 'success',
-    data: {
-      resource: newResource
-    }
+    data: { resource }
   });
 });
 // Update resource

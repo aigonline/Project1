@@ -1,9 +1,27 @@
 // Format date to readable format
-function formatDate(dateString) {
+function formatDate(dateString, short = false) {
+    if (!dateString) return 'N/A';
+    
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    if (isNaN(date.getTime())) return 'Invalid date';
+    
+    if (short) {
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+    
+    const options = {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    };
+    
+    return date.toLocaleDateString('en-US', options);
 }
-
 // Format time ago (e.g. "2 hours ago")
 function formatTimeAgo(dateString) {
     const date = new Date(dateString);
@@ -119,3 +137,4 @@ function capitalizeFirstLetter(string) {
     if (!string) return '';
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
+

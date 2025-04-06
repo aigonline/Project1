@@ -25,7 +25,7 @@ router.delete('/deleteMe', userController.deleteMe);
 router.get('/my-courses', protect, courseController.getMyCourses);
 router.get("/", courseController.getAllCourses);
 router.delete('/:courseId/unenroll', courseController.unenrollFromCourse);
-
+router.patch('/:courseId/', courseController.updateCourse);
 router.post('/', protect, restrictTo('instructor'), courseController.createCourse);
 router.get('/:id', protect, courseController.getCourse); // Add this line
 router.post('/enroll', courseController.enrollInCourse);
