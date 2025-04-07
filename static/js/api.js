@@ -40,33 +40,34 @@ const fetchWithAuth = async (endpoint, options = {}) => {
     return data;
 };
 
-function fetchWithoutAuth(endpoint, options = {}) {
-    return fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...(options.headers || {}),
-        },
-    })
-    .then(async (res) => {
-        // If the response is not OK, throw an error with the message
-        if (!res.ok) {
-            const err = await res.json();
-            console.error('Error in fetchWithoutAuth:', err); // Logging error response
-            throw new Error(err.message || 'Request failed');
-        }
+const fetchWithoutAuth = async (endpoint, options = {}) => {
+    if (!options.headers) options.headers = {};
+    
+    if (!options.noContentType && !options.formData) {
+        options.headers['Content-Type'] = 'application/json';
+    }
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    
+    // If no content (204), return an empty object
+    if (response.status === 204) return {};
 
-        // If everything is fine, return the parsed response
-        const data = await res.json();
-        return data;
-    })
-    .catch((error) => {
-        console.error('Fetch without auth error:', error);
-        throw error;
-    });
-}
-
-
+    // Handle 401 Unauthorized
+    if (response.status === 401) {
+        // Clear token and redirect to login
+        authService.logout();
+        loadLoginPage();
+        throw new Error('Session expired. Please log in again.');
+    }
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+        throw new Error(data.message || 'Something went wrong');
+    }
+    
+    return data;
+};
 // Auth services
 const authService = {
     login: async (email, password) => {
