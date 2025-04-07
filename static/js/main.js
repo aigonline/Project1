@@ -281,6 +281,17 @@ function loadView(view, params = {}) {
                 }
                 loadDiscussionDetail(params.discussionId);
                 break;
+                case 'resource-detail':
+                    if (!params.resourceId) {
+                        showToast('Resource ID is required', 'error');
+                        loadResources();
+                        return;
+                    }
+                    loadResourceDetail(params.resourceId).then(resolve).catch(reject);
+                    break;
+                case 'edit-resource':
+                    showEditResourceModal(params.resourceId).then(resolve).catch(reject);
+                    break;
                 case 'profile':
                     loadProfile().then(resolve).catch(reject);
                     break;
@@ -1215,287 +1226,493 @@ function getSubmissionForm(assignment) {
 }
 
 // Show upload resource modal
-async function showUploadResourceModal() {
-    let courses = [];
-    if (currentUser.role === 'instructor') {
-      try {
-        const response = await courseService.getMyCourses();
-        courses = response.data.courses;
-      } catch (error) {
-        console.error("Error fetching courses for resource modal:", error);
-      }
-    }
-  
-    const modalHtml = `
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-          <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-semibold">Upload Resource</h3>
-            <button id="closeResourceModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-  
-          <form id="uploadResourceForm" class="space-y-4">
-            <div>
-              <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Title</label>
-              <input type="text" id="resourceTitle" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200">
-            </div>
-  
-            <div>
-              <label class="block text-gray-700 dark:text-gray-300 mb-2">Description</label>
-              <textarea id="resourceDescription" rows="3" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
-            </div>
-  
-            ${currentUser.role === 'instructor' ? `
-              <div>
-                <label class="block text-gray-700 dark:text-gray-300 mb-2">Select Course</label>
-                <select id="resourceCourse" required class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200">
-                  <option value="">Select a course</option>
-                  ${courses.map(course => `<option value="${course._id}">${course.name} (${course.code})</option>`).join('')}
-                </select>
-              </div>
-            ` : ''}
-  
-            <div>
-              <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Type</label>
-              <select id="resourceType" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200">
-                <option value="PDF">PDF</option>
-                <option value="PPT">PowerPoint</option>
-                <option value="DOC">Document</option>
-                <option value="Video">Video</option>
-                <option value="Link">Web Link</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-  
-            <div id="fileUploadSection">
-              <label class="block text-gray-700 dark:text-gray-300 mb-2">File</label>
-              <input type="file" id="resourceFile" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200">
-            </div>
-  
-            <div id="linkSection" class="hidden">
-              <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Link</label>
-              <input type="url" id="resourceLink" placeholder="https://example.com" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 dark:text-gray-200">
-            </div>
-  
-            <div id="resourceError" class="text-red-500 hidden"></div>
-  
-            <div>
-              <button type="submit" class="w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                Upload Resource
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    `;
-  
-    const modalContainer = document.createElement('div');
-    modalContainer.innerHTML = modalHtml;
-    document.body.appendChild(modalContainer);
-  
-    document.getElementById('closeResourceModal').addEventListener('click', () => {
-      document.body.removeChild(modalContainer);
-    });
-  
-    const resourceTypeSelect = document.getElementById('resourceType');
-    resourceTypeSelect.addEventListener('change', (e) => {
-      const isLink = e.target.value === 'Link';
-      document.getElementById('fileUploadSection').classList.toggle('hidden', isLink);
-      document.getElementById('linkSection').classList.toggle('hidden', !isLink);
-    });
-  
-    // Pre-select course if available
-    if (currentUser.role === 'instructor' && currentCourse) {
-      const courseSelect = document.getElementById('resourceCourse');
-      const optionToSelect = Array.from(courseSelect.options).find(opt => opt.value === currentCourse._id);
-      if (optionToSelect) optionToSelect.selected = true;
-    }
-  
-    document.getElementById('uploadResourceForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-  
-      const title = document.getElementById('resourceTitle').value;
-      const description = document.getElementById('resourceDescription').value;
-      const type = resourceTypeSelect.value;
-      const isLink = type === 'Link';
-  
-      // Get course ID
-      let courseId;
-      if (currentUser.role === 'instructor') {
-        const courseSelect = document.getElementById('resourceCourse');
-        if (courseSelect.value) {
-          courseId = courseSelect.value;
-        } else if (currentCourse && currentCourse._id) {
-          courseId = currentCourse._id;
-        } else {
-          const errorDiv = document.getElementById('resourceError');
-          errorDiv.textContent = "No course selected for resource upload.";
-          errorDiv.classList.remove('hidden');
-          return;
+async function showUploadResourceModal(courseId) {
+    try {
+        // Use provided courseId or fall back to the current course if available
+        courseId = courseId || (currentCourse ? currentCourse._id : null);
+        
+        // If no course ID is available, we need to let the user select a course
+        let userCourses = [];
+        let selectedCourseId = courseId;
+        
+        if (!courseId) {
+            try {
+                // Get courses where user is instructor
+                const coursesResponse = await courseService.getMyCourses();
+                userCourses = coursesResponse.data.courses.filter(course => 
+                    (currentUser.role === 'admin') || 
+                    (course.instructor === currentUser._id) ||
+                    (typeof course.instructor === 'object' && course.instructor._id === currentUser._id)
+                );
+                
+                if (userCourses.length === 0) {
+                    showToast('You do not have any courses where you can upload resources.', 'error');
+                    return;
+                }
+                
+                // Default to the first course
+                selectedCourseId = userCourses[0]._id;
+            } catch (error) {
+                console.error('Error fetching courses:', error);
+                showToast('Failed to load your courses. Please try again.', 'error');
+                return;
+            }
         }
-      } else {
-        if (currentCourse && currentCourse._id) {
-          courseId = currentCourse._id;
-        } else {
-          const errorDiv = document.getElementById('resourceError');
-          errorDiv.textContent = "No course context available.";
-          errorDiv.classList.remove('hidden');
-          return;
-        }
-      }
-  
-      try {
-        if (isLink) {
-          const link = document.getElementById('resourceLink').value;
-          if (!link) throw new Error("Please provide a valid link.");
-  
-          await resourceService.uploadResource({ title, description, type, link, course: courseId });
-        } else {
-          const fileInput = document.getElementById('resourceFile');
-          if (!fileInput.files.length) throw new Error("Please select a file.");
-  
-          const formData = new FormData();
-          formData.append('title', title);
-          formData.append('description', description);
-          formData.append('type', type);
-          formData.append('course', courseId);
-          formData.append('file', fileInput.files[0]);
-  
-          await resourceService.createResource(courseId, formData);
-        }
-  
-        document.body.removeChild(modalContainer);
-        showToast('Resource uploaded successfully!');
-        loadView('course-detail', { courseId });
-      } catch (error) {
-        const errorDiv = document.getElementById('resourceError');
-        errorDiv.textContent = error.message || "Failed to upload resource.";
-        errorDiv.classList.remove('hidden');
-      }
-    });
-  }
-  
-// View resource
-function viewResource(resourceId) {
-    resourceService.getResource(resourceId)
-        .then(response => {
-            const resource = response.data.resource;
-            
-            // ✅ Check if the current user is allowed to delete
-            const canDelete = resource.addedBy._id === currentUser._id || ['instructor', 'admin'].includes(currentUser.role);
-
-            // Create modal HTML
-            const modalHtml = `
-                <div id="resourceModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-xl font-semibold">${resource.title}</h3>
-                            <button id="closeResourceModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                                <i class="fas fa-times"></i>
-                            </button>
+        
+        // Create and show modal
+        const modalHtml = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Upload Resource</h3>
+                        <button id="closeResourceModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <form id="resourceUploadForm" class="space-y-4">
+                        ${!courseId ? `
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Course</label>
+                                <select id="resourceCourse" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    ${userCourses.map(course => `
+                                        <option value="${course._id}">${course.name} (${course.code})</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                        ` : ''}
+                        
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Title <span class="text-red-500">*</span></label>
+                            <input type="text" id="resourceTitle" required placeholder="Enter a title for this resource" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                         </div>
                         
-                        <div class="mb-4">
-                            <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                <span class="mr-3">Type: ${resource.type}</span>
-                                <span>Added by: ${resource.addedBy.firstName} ${resource.addedBy.lastName}</span>
-                            </div>
-
-                            ${resource.description ? `
-                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 mt-2 mb-4">
-                                    <h4 class="font-medium mb-1">Description</h4>
-                                    <p class="text-gray-700 dark:text-gray-300">${resource.description}</p>
-                                </div>
-                            ` : ''}
-
-                            ${resource.link ? `
-                                <div class="mt-4">
-                                    <a href="${resource.link}" target="_blank" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition inline-flex items-center">
-                                        <i class="fas fa-external-link-alt mr-2"></i>
-                                        Visit Link
-                                    </a>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                        URL: ${resource.link}
-                                    </p>
-                                </div>
-                            ` : resource.file ? `
-                                <div class="mt-4 text-center">
-                                    ${['PDF', 'Image'].includes(resource.type) ? `
-                                        <div class="bg-gray-100 dark:bg-gray-750 p-6 rounded-lg">
-                                            <i class="fas fa-file-${resource.type === 'PDF' ? 'pdf text-red-500' : 'image text-blue-500'} text-6xl"></i>
-                                        </div>
-                                    ` : `
-                                        <i class="fas fa-file text-gray-500 text-6xl"></i>
-                                    `}
-                                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
-                                        ${resource.file.fileName} (${formatFileSize(resource.file.fileSize)})
-                                    </p>
-                                    <a href="#" class="mt-4 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition inline-flex items-center">
-                                        <i class="fas fa-download mr-2"></i>
-                                        Download File
-                                    </a>
-                                </div>
-                            ` : `
-                                <div class="mt-4 p-4 bg-gray-50 dark:bg-gray-750 rounded-lg text-center">
-                                    <i class="fas fa-info-circle text-blue-500 mr-1"></i>
-                                    No file or link available for this resource.
-                                </div>
-                            `}
-
-                            <!-- ✅ Delete Button (Visible Only to Authorized Users) -->
-                            ${canDelete ? `
-                                <div class="mt-6">
-                                    <button id="deleteResourceBtn" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition">
-                                        <i class="fas fa-trash-alt mr-2"></i>Delete Resource
-                                    </button>
-                                </div>
-                            ` : ''}
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                            <textarea id="resourceDescription" rows="3" placeholder="Describe what this resource contains or how students should use it" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
                         </div>
-                    </div>
-                </div>
-            `;
-
-            // Add modal to the document
-            const modalContainer = document.createElement('div');
-            modalContainer.innerHTML = modalHtml;
-            document.body.appendChild(modalContainer);
-
-            // Setup event listeners
-            document.getElementById('closeResourceModal').addEventListener('click', () => {
-                document.getElementById('resourceModal').remove();
-            });
-
-            // ✅ Handle resource deletion
-            if (canDelete) {
-                document.getElementById('deleteResourceBtn').addEventListener('click', async () => {
-                    if (confirm("Are you sure you want to delete this resource?")) {
-                        try {
-                            await resourceService.deleteResource(resourceId);
-                            showToast("Resource deleted successfully!");
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Type <span class="text-red-500">*</span></label>
+                                <select id="resourceType" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="">-- Select Resource Type --</option>
+                                    <option value="file">File Upload</option>
+                                    <option value="link">External Link</option>
+                                </select>
+                            </div>
                             
-                            // ✅ Remove the modal immediately
-                            document.getElementById('resourceModal').remove();
-
-                            // ✅ Remove the deleted resource from the UI
-                            const resourceItem = document.querySelector(`[data-resource-id="${resourceId}"]`);
-                            if (resourceItem) resourceItem.remove();
-
-                            // ✅ Refresh resources view
-                            loadView('resources');
-
-                        } catch (error) {
-                            showToast("Failed to delete resource", "error");
-                        }
-                    }
-                });
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching resource:', error);
-            showToast('Failed to load resource details', 'error');
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                                <select id="resourceCategory" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="lecture">Lecture Materials</option>
+                                    <option value="reading">Reading Materials</option>
+                                    <option value="exercise">Practice Exercises</option>
+                                    <option value="assignment">Assignment Materials</option>
+                                    <option value="reference">Reference Materials</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- File upload section (initially hidden) -->
+                        <div id="fileUploadSection" class="hidden">
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Upload File <span class="text-red-500">*</span></label>
+                            <input type="file" id="resourceFile" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Maximum file size: 10MB. Supported formats: PDF, DOCX, PPTX, XLSX, ZIP, MP4, JPG, PNG
+                            </p>
+                        </div>
+                        
+                        <!-- Link section (initially hidden) -->
+                        <div id="linkSection" class="hidden">
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">External URL <span class="text-red-500">*</span></label>
+                            <input type="url" id="resourceLink" placeholder="https://example.com/resource" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        </div>
+                        ${currentUser.role === 'instructor' ? `
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Visibility</label>
+                            <select id="resourceVisibility" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                <option value="true">Visible to Students</option>
+                                <option value="false">Hidden from Students</option>
+                            </select>
+                        </div>
+                        ` :''}
+                        <div id="resourceError" class="text-red-500 hidden"></div>
+                        
+                        <div class="flex justify-end pt-2">
+                            <button type="button" id="cancelResourceBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                                Cancel
+                            </button>
+                            <button type="submit" id="uploadResourceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                Upload Resource
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to DOM
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+        
+        // Set up event listeners
+        
+        // Close modal
+        document.getElementById('closeResourceModal').addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
         });
+        
+        document.getElementById('cancelResourceBtn').addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+        });
+        
+        // Handle resource type selection
+        const resourceType = document.getElementById('resourceType');
+        resourceType.addEventListener('change', (e) => {
+            // Hide all resource sections
+            document.getElementById('fileUploadSection').classList.add('hidden');
+            document.getElementById('linkSection').classList.add('hidden');
+            
+            // Show the selected section
+            const selectedType = e.target.value;
+            if (selectedType === 'file') {
+                document.getElementById('fileUploadSection').classList.remove('hidden');
+            } else if (selectedType === 'link') {
+                document.getElementById('linkSection').classList.remove('hidden');
+            }
+        });
+        
+        // Handle form submission
+        document.getElementById('resourceUploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const errorDiv = document.getElementById('resourceError');
+            errorDiv.classList.add('hidden');
+            
+            // Get the selected course ID
+            const targetCourseId = courseId || document.getElementById('resourceCourse')?.value;
+            if (!targetCourseId) {
+                errorDiv.textContent = 'Please select a course.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Get common resource data
+            const title = document.getElementById('resourceTitle').value;
+            const description = document.getElementById('resourceDescription').value;
+            const category = document.getElementById('resourceCategory').value;
+            const isVisible = document.getElementById('resourceVisibility').value === 'true';
+            
+            // Validate required fields
+            const selectedType = resourceType.value;
+            if (!selectedType) {
+                errorDiv.textContent = 'Please select a resource type.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Prepare form data (for both file and link resources)
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('description', description);
+            formData.append('category', category);
+            formData.append('isVisible', isVisible);
+            
+            // Handle resource type-specific data and validation
+            if (selectedType === 'file') {
+                const fileInput = document.getElementById('resourceFile');
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    errorDiv.textContent = 'Please select a file to upload.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Check file size (10MB max)
+                const file = fileInput.files[0];
+                if (file.size > 10 * 1024 * 1024) { // 10MB in bytes
+                    errorDiv.textContent = 'File size exceeds the 10MB limit.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Add file to formData
+                formData.append('file', file);
+                
+            } else if (selectedType === 'link') {
+                const link = document.getElementById('resourceLink').value;
+                if (!link) {
+                    errorDiv.textContent = 'Please enter a valid URL.';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                // Validate URL format
+                try {
+                    new URL(link); // Will throw if invalid
+                    formData.append('link', link);
+                } catch (error) {
+                    errorDiv.textContent = 'Please enter a valid URL (include http:// or https://).';
+                    errorDiv.classList.remove('hidden');
+                    return;
+                }
+            }
+            
+            // Update button state
+            const uploadBtn = document.getElementById('uploadResourceBtn');
+            const originalBtnText = uploadBtn.innerHTML;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
+            
+            try {
+                // Call the API to create the resource - pass the courseId in the URL parameter
+                await resourceService.createResource(targetCourseId, formData);
+                
+                // Close modal
+                document.body.removeChild(modalContainer);
+                
+                // Show success message
+                showToast('Resource uploaded successfully!');
+                
+                // Refresh the course resources if we're in a course detail view
+                if (currentView === 'course-detail' && currentCourse) {
+                    loadCourseDetail(currentCourse._id);
+                }
+                else {
+                    loadResources();
+                }
+
+            } catch (error) {
+                console.error('Error uploading resource:', error);
+                errorDiv.textContent = error.message || 'Failed to upload resource. Please try again.';
+                errorDiv.classList.remove('hidden');
+                
+                // Reset button state
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = originalBtnText;
+            }
+            
+        });
+        
+    } catch (error) {
+        console.error('Error showing upload resource modal:', error);
+        showToast('An error occurred. Please try again.', 'error');
+    }
+   
+}    
+  
+  /**
+ * Show modal to edit a resource
+ * @param {string} resourceId - ID of the resource to edit
+ * @returns {Promise<void>}
+ */
+async function showEditResourceModal(resourceId) {
+    try {
+        // Show loading modal
+        const loadingModalHtml = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm text-center">
+                    <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto animate-spin mb-4"></div>
+                    <p class="text-gray-700 dark:text-gray-300">Loading resource data...</p>
+                </div>
+            </div>
+        `;
+        
+        const loadingContainer = document.createElement('div');
+        loadingContainer.innerHTML = loadingModalHtml;
+        document.body.appendChild(loadingContainer);
+        
+        // Fetch resource data
+        const response = await resourceService.getResource(resourceId);
+        const resource = response.data.resource;
+        
+        // Remove loading modal
+        document.body.removeChild(loadingContainer);
+        
+        // Prepare data for the form
+        const courseId = typeof resource.course === 'object' ? resource.course._id : resource.course;
+        
+        // Create edit modal
+        const modalHtml = `
+            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Edit Resource</h3>
+                        <button id="closeEditResourceModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <form id="editResourceForm" class="space-y-4">
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Title <span class="text-red-500">*</span></label>
+                            <input type="text" id="resourceTitle" value="${resource.title}" required placeholder="Enter a title for this resource" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                            <textarea id="resourceDescription" rows="3" placeholder="Describe what this resource contains or how students should use it" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${resource.description || ''}</textarea>
+                            ${resource.type === 'text' ? `<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">You can use Markdown formatting in the description.</p>` : ''}
+                        </div>
+                        
+                        <!-- Display resource type (cannot be changed) -->
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Resource Type</label>
+                            <div class="px-4 py-2 bg-gray-100 dark:bg-gray-750 rounded-lg text-gray-700 dark:text-gray-300">
+                                ${resource.type === 'file' ? 'File Upload' : resource.type === 'link' ? 'External Link' : 'Text Content'}
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Resource type cannot be changed after creation.</p>
+                        </div>
+                        
+                        ${resource.type === 'link' ? `
+                            <!-- Link URL for link resources -->
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">External URL <span class="text-red-500">*</span></label>
+                                <input type="url" id="resourceLink" value="${resource.link || ''}" required placeholder="https://example.com/resource" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            </div>
+                        ` : resource.type === 'text' ? `
+                            <!-- Content for text resources -->
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Content <span class="text-red-500">*</span></label>
+                                <textarea id="resourceContent" rows="6" required placeholder="Enter the content or paste from another source. Markdown formatting is supported." class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${resource.content || ''}</textarea>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">You can use Markdown for formatting.</p>
+                            </div>
+                        ` : `
+                            <!-- File info for file resources -->
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Current File</label>
+                                <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-750 rounded-lg">
+                                    ${getResourceTypeIcon(resource)}
+                                    <div class="ml-3 flex-1">
+                                        <p class="font-medium">${resource.file?.fileName || 'File'}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                                            ${formatFileSize(resource.file?.fileSize)} • ${resource.file?.fileType || 'Unknown type'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    To replace this file, please create a new resource.
+                                </p>
+                            </div>
+                        `}
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                                <select id="resourceCategory" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="lecture" ${resource.category === 'lecture' ? 'selected' : ''}>Lecture Materials</option>
+                                    <option value="reading" ${resource.category === 'reading' ? 'selected' : ''}>Reading Materials</option>
+                                    <option value="exercise" ${resource.category === 'exercise' ? 'selected' : ''}>Practice Exercises</option>
+                                    <option value="assignment" ${resource.category === 'assignment' ? 'selected' : ''}>Assignment Materials</option>
+                                    <option value="reference" ${resource.category === 'reference' ? 'selected' : ''}>Reference Materials</option>
+                                    <option value="other" ${resource.category === 'other' ? 'selected' : ''}>Other</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Visibility</label>
+                                <select id="resourceVisibility" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="true" ${resource.isVisible !== false ? 'selected' : ''}>Visible to Students</option>
+                                    <option value="false" ${resource.isVisible === false ? 'selected' : ''}>Hidden from Students</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="editResourceError" class="text-red-500 hidden"></div>
+                        
+                        <div class="flex justify-end pt-2">
+                            <button type="button" id="cancelEditResourceBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                                Cancel
+                            </button>
+                            <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to DOM
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+        
+        // Set up event listeners
+        document.getElementById('closeEditResourceModal').addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+        });
+        
+        document.getElementById('cancelEditResourceBtn').addEventListener('click', () => {
+            document.body.removeChild(modalContainer);
+        });
+        
+        // Form submission
+        document.getElementById('editResourceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const title = document.getElementById('resourceTitle').value;
+            const description = document.getElementById('resourceDescription').value;
+            const category = document.getElementById('resourceCategory').value;
+            const isVisible = document.getElementById('resourceVisibility').value === 'true';
+            const errorDiv = document.getElementById('editResourceError');
+            
+            // Resource-type specific fields
+            let updateData = {
+                title,
+                description,
+                category,
+                isVisible
+            };
+            
+            if (resource.type === 'link') {
+                updateData.link = document.getElementById('resourceLink').value;
+            } else if (resource.type === 'text') {
+                updateData.content = document.getElementById('resourceContent').value;
+            }
+            
+            errorDiv.classList.add('hidden');
+            
+            try {
+                // Update the resource
+                await resourceService.updateResource(resourceId, updateData);
+                
+                // Close modal and show success message
+                document.body.removeChild(modalContainer);
+                showToast('Resource updated successfully!');
+                
+                // Reload the resource detail view
+                loadResourceDetail(resourceId);
+            } catch (error) {
+                console.error('Error updating resource:', error);
+                errorDiv.textContent = error.message || 'Failed to update resource. Please try again.';
+                errorDiv.classList.remove('hidden');
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error showing edit resource modal:', error);
+        showToast('Failed to load resource data for editing', 'error');
+    }
+}  
+/**
+ * Delete a resource
+ * @param {string} resourceId - ID of the resource to delete
+ * @returns {Promise<void>}
+ */
+async function deleteResource(id) {
+    try {
+        await resourceService.deleteResource(id);
+        showToast('Resource deleted successfully!');
+        
+        // Redirect to resources list
+        loadResources();
+    } catch (error) {
+        console.error('Error deleting resource:', error);
+        showToast('Failed to delete resource', 'error');
+    }
 }
 
 // Show new discussion modal

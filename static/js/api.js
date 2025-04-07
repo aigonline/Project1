@@ -213,9 +213,11 @@ const assignmentService = {
 // Resources service
 const resourceService = {
     createResource: async (courseId, formData) => {
-        return await fetchWithAuth(`/courses/${courseId}/resources`, {
+        return await fetchWithAuth(`/resources/${courseId}`, {
             method: 'POST',
-            body: formData // Using FormData directly
+            body: formData,
+            formData: true
+             // Using FormData directly
             // No Content-Type header - browser sets this automatically for FormData
         });
     },
@@ -229,20 +231,80 @@ const resourceService = {
 
     getResource: async (id) => {
         return await fetchWithAuth(`/resources/${id}`);
-    },
+    },      
     getPopularResources: async () => {
         return await fetchWithAuth('/resources/popular');
     },
     getMyResources: async () => {
         return await fetchWithAuth('/resources/my-resources'); // Fetch only the user's resources
     },
-    togglePin: async (id) => {
-            return await fetchWithAuth(`/resources/${id}/pin`, {
-                method: 'PATCH'
-            });
-        },
+    updateResource: async (id, formData) => {
+        return await fetchWithAuth(`/resources/${id}`, {
+            method: 'PATCH',
+            body: formData,
+            formData: true
+        });
+    },
+    
+    // Delete a resource
     deleteResource: async (id) => {
         return await fetchWithAuth(`/resources/${id}`, {
+            method: 'DELETE'
+        });
+    },
+    
+    // Like a resource
+    likeResource: async (resourceId) => {
+        return await fetchWithAuth(`/resources/${resourceId}/like`, {
+            method: 'POST'
+        });
+    },
+    
+    // Unlike a resource
+    unlikeResource: async (resourceId) => {
+        return await fetchWithAuth(`/resources/${resourceId}/unlike`, {
+            method: 'DELETE'
+        });
+    },
+    
+    // Pin a resource (for instructors)
+    pinResource: async (resourceId) => {
+        return await fetchWithAuth(`/resources/${resourceId}/pin`, {
+            method: 'POST'
+        });
+    },
+    
+    // Unpin a resource
+    unpinResource: async (resourceId) => {
+        return await fetchWithAuth(`/resources/${resourceId}/pin`, {
+            method: 'DELETE'
+        });
+    },
+    
+    // Record a resource view
+    recordResourceView: async (resourceId) => {
+        return await fetchWithAuth(`/resources/${resourceId}/view`, {
+            method: 'POST'
+        });
+    },
+    
+    // Comment functions
+    addComment: async (resourceId, data) => {
+        return await fetchWithAuth(`/resources/${resourceId}/comments`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    updateComment: async (resourceId, commentId, data) => {
+        return await fetchWithAuth(`/resources/${resourceId}/comments/${commentId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    deleteComment: async (resourceId, commentId) => {
+        return await fetchWithAuth(`/resources/${resourceId}/comments/${commentId}`, {
             method: 'DELETE'
         });
     }

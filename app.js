@@ -64,7 +64,7 @@ const limiter = rateLimit({
 app.use("/api", limiter);
 
 // ✅ Middleware for parsing JSON & sanitizing data
-app.use(express.json({ limit: "10kb" }));
+app.use(express.json({ limit: "800kb" }));
 app.use(mongoSanitize());
 
 // ✅ Serve static files correctly

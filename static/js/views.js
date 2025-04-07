@@ -212,10 +212,7 @@ async function loadDashboard() {
                 const assignmentsResponse = await assignmentService.getAllAssignments();
                 const allAssignments = assignmentsResponse.data.assignments;
                 
-                // Filter assignments:
-                // 1. Only from user's courses
-                // 2. Due date is in the future
-                // 3. Not already submitted (for students)
+                
                 upcomingAssignments = allAssignments.filter(assignment => {
                     // Check if assignment belongs to one of user's courses
                     const courseMatch = courses.some(course => 
@@ -272,12 +269,13 @@ async function loadDashboard() {
                 console.warn('Could not fetch discussions:', error);
             }
         }
-        
+       
         // Build dashboard HTML
         content.innerHTML = `
             <div class="mb-6">
                 <h1 class="text-2xl font-bold">Dashboard</h1>
                 <p class="text-gray-600 dark:text-gray-400">Welcome back, ${currentUser.firstName}!</p>
+                <hr class="my-4 border-black-200 dark:border-black-700">
             </div>
             
             <!-- My Courses Section -->
@@ -342,6 +340,7 @@ async function loadDashboard() {
                 `}
             </div>
             
+            <hr class="my-4 border-black-200 dark:border-black-700">
             <!-- Two Column Layout for Assignments and Discussions -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Upcoming Assignments -->
@@ -454,6 +453,25 @@ async function loadDashboard() {
                                 </button>
                             </div>
                         `}
+                    </div>
+                    
+                </div>
+                <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md p-10">
+                    <h3 class="text-lg font-semibold mb-3">Calendar</h3>
+                    <div class="text-center py-4 px-2">
+                        <div class="font-medium text-lg mb-2">${getCurrentMonth()}</div>
+                        <div class="grid grid-cols-7 gap-1 text-xs mb-2">
+                            <div>Su</div>
+                            <div>Mo</div>
+                            <div>Tu</div>
+                            <div>We</div>
+                            <div>Th</div>
+                            <div>Fr</div>
+                            <div>Sa</div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1">
+                            ${generateCalendarDays(upcomingAssignments)}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3026,433 +3044,318 @@ async function deleteReply(discussionId, replyId) {
     }   
 }
 
-async function loadResources() {
+/**
+ * Load resources view with filtering, sorting and categorization
+ * @param {string} courseId - Optional course ID to filter resources
+ * @returns {Promise<void>}
+ */
+async function loadResources(courseId = null) {
     try {
-        // Fetch resources
-        const resourcesResponse = await resourceService.getAllResources();
-        const resources = resourcesResponse.data.resources;
+        // Show loading state
+        content.innerHTML = `
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
         
-        // Make sure each resource has a valid course object
-        resources.forEach(resource => {
-            // If course is missing or invalid, provide a fallback
-            if (!resource.course || typeof resource.course !== 'object') {
-                resource.course = {
-                    _id: 'unknown',
-                    code: 'N/A',
-                    color: '#888888'
-                };
+        // Fetch resources based on parameters
+        let resources = [];
+        let currentCourseData = null;
+        
+        if (courseId) {
+            // Fetch resources for a specific course
+            try {
+                const response = await resourceService.getCourseResources(courseId);
+                resources = response.data.resources;
+                
+                // Also fetch the course data
+                const courseResponse = await courseService.getCourse(courseId);
+                currentCourseData = courseResponse.data.course;
+            } catch (error) {
+                console.error('Error fetching course resources:', error);
+                throw new Error('Failed to load course resources');
+            }
+        } else {
+            // Fetch all resources the user has access to
+            try {
+                const response = await resourceService.getAllResources();
+                resources = response.data.resources;
+            } catch (error) {
+                console.error('Error fetching all resources:', error);
+                throw new Error('Failed to load resources');
+            }
+        }
+        
+        // Get all user's courses for filter
+        let userCourses = [];
+        try {
+            const coursesResponse = await courseService.getMyCourses();
+            userCourses = coursesResponse.data.courses;
+        } catch (error) {
+            console.warn('Could not fetch courses for filter:', error);
+        }
+        
+        // Prepare data for rendering
+        const resourceCategories = [
+            { id: 'all', name: 'All Resources' },
+            { id: 'lecture', name: 'Lecture Materials' },
+            { id: 'reading', name: 'Reading Materials' },
+            { id: 'exercise', name: 'Practice Exercises' },
+            { id: 'assignment', name: 'Assignment Materials' },
+            { id: 'reference', name: 'Reference Materials' },
+            { id: 'other', name: 'Other Resources' }
+        ];
+        
+        // Determine if user can upload resources
+        const canUpload = currentUser.role === 'instructor' || currentUser.role === 'admin';
+        
+        // Group resources by category
+        const resourcesByCategory = {};
+        resourceCategories.forEach(category => {
+            if (category.id === 'all') {
+                resourcesByCategory[category.id] = [...resources];
+            } else {
+                resourcesByCategory[category.id] = resources.filter(
+                    resource => resource.category === category.id
+                );
             }
         });
         
-        // Fetch popular resources
-        let popularResources = [];
-        try {
-            const popularResponse = await resourceService.getPopularResources();
-            popularResources = popularResponse.data.resources;
-            
-            // Apply same course validity check to popular resources
-            popularResources.forEach(resource => {
-                if (!resource.course || typeof resource.course !== 'object') {
-                    resource.course = {
-                        _id: 'unknown',
-                        code: 'N/A',
-                        color: '#888888'
-                    };
-                }
-            });
-        } catch (error) {
-            console.warn('Could not fetch popular resources:', error);
-            // If popular resources endpoint fails, create a fallback
-            popularResources = resources
-                .slice() // Create a copy to avoid modifying the original
-                .sort((a, b) => (b.downloadCount || 0) - (a.downloadCount || 0))
-                .slice(0, 5);
-        }
-        
-        // Fetch user's courses for filtering
-        const coursesResponse = await courseService.getMyCourses();
-        const courses = coursesResponse.data.courses;
-        
-        // Sort resources by date (newest first)
-        resources.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        
+        // Build the view
         content.innerHTML = `
-            <div class="flex flex-wrap justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold">Resources</h2>
-                <div class="mt-2 sm:mt-0 flex flex-wrap gap-2">
-                
-                    <div class="relative">
-                        <input type="text" id="searchResources" placeholder="Search resources..." class="pl-10 pr-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                        <div class="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <i class="fas fa-search text-gray-400"></i>
-                        </div>
-                    </div>
-                    <button id="uploadResourceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                            <i class="fas fa-plus mr-1"></i> New Resource
-                        </button>
+            <div class="mb-6 flex flex-wrap justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold">
+                        ${currentCourseData ? `Resources: ${currentCourseData.name}` : 'Resources'}
+                    </h1>
+                    ${currentCourseData ? `
+                        <p class="text-gray-600 dark:text-gray-400 mt-1">
+                            ${currentCourseData.code} • ${currentCourseData.instructor.firstName} ${currentCourseData.instructor.lastName}
+                        </p>
+                    ` : ''}
                 </div>
+                
+                ${canUpload ? `
+                    <button id="uploadResourceBtn" class="mt-2 sm:mt-0 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                        <i class="fas fa-upload mr-1"></i> Upload Resource
+                    </button>
+                ` : ''}
             </div>
             
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
-                        <div class="flex flex-wrap justify-between items-center mb-4">
-                            <div class="flex flex-wrap gap-2 mb-2 sm:mb-0">
-                                <button class="resource-filter-btn px-3 py-1.5 bg-primary text-white rounded-lg text-sm" data-filter="all">All</button>
-                                <button class="resource-filter-btn px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm" data-filter="documents">Documents</button>
-                                <button class="resource-filter-btn px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm" data-filter="videos">Videos</button>
-                                <button class="resource-filter-btn px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm" data-filter="myuploads">My Uploads</button>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <select id="courseFilter" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-800">
-                                    <option value="all">All Courses</option>
-                                    ${courses.map(course => `<option value="${course._id}">${course.code}</option>`).join('')}
-                                </select>
-                                <select id="resourceSort" class="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 bg-white dark:bg-gray-800">
-                                    <option value="latest">Sort: Latest</option>
-                                    <option value="downloads">Sort: Most Downloads</option>
-                                    <option value="name">Sort: Name</option>
-                                </select>
-                            </div>
-                        </div>
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <!-- Left sidebar: Filters and controls -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 sticky top-4">
+                        <h2 class="font-semibold text-lg mb-4">Filter Resources</h2>
                         
-                        <div id="resourcesList" class="divide-y divide-gray-200 dark:divide-gray-700">
-                            ${resources.length === 0 ? `
-                                <div class="py-6 text-center text-gray-500 dark:text-gray-400">
-                                    <p>No resources found.</p>
+                        <!-- Search -->
+                        <div class="mb-4">
+                            <div class="relative">
+                                <input type="text" id="searchResources" placeholder="Search resources..." class="pl-10 pr-4 py-2 w-full text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                <div class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                    <i class="fas fa-search text-gray-400"></i>
                                 </div>
-                            ` : resources.map(resource => {
-                                // Ensure uploader has a valid object structure
-                                const uploader = resource.addedBy || { _id: 'unknown', firstName: 'Unknown', lastName: 'User' };
-                                const course = resource.course; // 
-                                const isMyUpload = uploader._id === currentUser._id;
-                                const fileIcon = getFileIcon(resource.file?.fileType || 'unknown');
-                                
-                                return `
-                                    <div class="py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 -mx-5 px-5 transition resource-item" 
-                                        data-course="${course._id}"
-                                        data-type="${(resource.file?.fileType || resource.file?.fileName?.split('.').pop() || 'unknown').toLowerCase()}"
-                                        data-myupload="${isMyUpload}">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex">
-                                                <div class="flex-shrink-0 mr-3 text-2xl text-primary">
-                                                    <i class="${fileIcon}"></i>
-                                                </div>
-                                                <div>
-                                                    <div class="flex items-center gap-2">
-                                                    <div class="flex items-center gap-3">
-                                                        <h4 class="font-medium">${resource.title || 'Untitled Resource'}</h4>
-                                                    </div>
-                                                        ${resource.isPinned ? `
-                                                            <span class="text-yellow-500 dark:text-yellow-400" title="Pinned">
-                                                                <i class="fas fa-thumbtack"></i>
-                                                            </span>
-                                                        ` : ''}
-                                                    </div>
-                                                    <div class="flex items-center mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                                        <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${course.color || 'var(--tw-colors-blue-500)'}25; color: ${course.color || 'var(--tw-colors-blue-500)'};">
-                                                            ${course.code}
-                                                        </span>
-                                                        <span class="mx-2">•</span>
-                                                        <span>Uploaded by ${uploader.firstName} ${uploader.lastName}</span>
-                                                        <span class="mx-2">•</span>
-                                                        <span>${formatTimeAgo(resource.createdAt)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                                <i class="fas fa-download mr-1"></i> ${resource.downloadCount || 0}
-                                                <span class="ml-2 text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-full">
-                                                    ${formatFileSize(resource.file?.fileSize || 0)}
-                                                </span>
-                                                <p class="mr-1 mt-2 text-sm text-gray-600 dark:text-gray-300 line-clamp-3">
-                                                ${resource.description || 'No description provided.'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        
-                                        <button 
-                                        class="mt-3 px-3 py-0.5 bg-primary hover:bg-primaryDark text-white rounded-full transition text-align:right text-sm" onclick="viewResource('${resource._id}')">
-                                        View
-                                        </button>
-                                        ${resource.tags && resource.tags.length > 0 ? `
-                                            <div class="mt-2 flex flex-wrap gap-1">
-                                                ${resource.tags.map(tag => `
-                                                    <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 rounded-full">
-                                                        ${tag}
-                                                    </span>
-                                                `).join('')}
-                                            </div>
-                                        ` : ''}
-                                    </div>
-                                `;
-                            }).join('')}
+                            </div>
                         </div>
                         
-                        ${resources.length > 10 ? `
-                            <div class="mt-4 text-center">
-                                <button id="loadMoreBtn" class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-650 transition">
-                                    Load More
-                                </button>
+                        <!-- Categories -->
+                        <div class="mb-4">
+                            <h3 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Categories</h3>
+                            <div class="space-y-2">
+                                ${resourceCategories.map(category => `
+                                    <button class="resource-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition ${category.id === 'all' ? 'bg-primary bg-opacity-10 text-primary dark:bg-opacity-20 dark:text-primaryLight' : ''}" data-category="${category.id}">
+                                        ${category.name}
+                                        <span class="float-right">${resourcesByCategory[category.id].length}</span>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                        
+                        ${!courseId && userCourses.length > 0 ? `
+                            <!-- Course filter (only show when viewing all resources) -->
+                            <div class="mb-4">
+                                <h3 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Courses</h3>
+                                <select id="courseFilter" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    <option value="all">All Courses</option>
+                                    ${userCourses.map(course => `
+                                        <option value="${course._id}">${course.code} - ${course.name}</option>
+                                    `).join('')}
+                                </select>
                             </div>
                         ` : ''}
+                        
+                        <!-- Type filter -->
+                        <div class="mb-4">
+                            <h3 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Resource Type</h3>
+                            <div class="space-y-2">
+                                <label class="flex items-center">
+                                    <input type="checkbox" class="resource-type-filter" value="all" checked>
+                                    <span class="ml-2">All Types</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" class="resource-type-filter" value="file">
+                                    <span class="ml-2">Files</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" class="resource-type-filter" value="link">
+                                    <span class="ml-2">Links</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" class="resource-type-filter" value="text">
+                                    <span class="ml-2">Text</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Sort options -->
+                        <div>
+                            <h3 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Sort By</h3>
+                            <select id="resourceSort" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                <option value="recent">Recently Added</option>
+                                <option value="title">Title (A-Z)</option>
+                                <option value="likes">Most Liked</option>
+                                <option value="views">Most Viewed</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 
-                <div>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
-                        <h3 class="text-lg font-semibold mb-4">Popular Resources</h3>
-                        <div class="space-y-3">
-                            ${popularResources.length > 0 ? popularResources.slice(0, 5).map(resource => {
-                                const fileIcon = getFileIcon(resource.fileType || 'unknown');
-                                // Ensure course is available and valid
-                                const course = resource.course || { code: 'N/A' };
-                                return `
-                                <div class="flex items-start cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 -mx-5 px-5 py-2 transition" onclick="loadView('resource-detail', {resourceId: '${resource._id}'})">
-                                    <div class="flex-shrink-0 w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary mr-3">
-                                        <i class="${fileIcon}"></i>
-                                    </div>
-                                    <div>
-                                    <p class="font-medium line-clamp-1">${resource.title || 'Untitled Resource'}</p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                                            ${course.code} • ${formatTimeAgo(resource.createdAt)}
-                                    </p>
-                                    </div>
-                                    <div class="ml-auto text-xs text-gray-500">
-                                        <i class="fas fa-download"></i> ${resource.downloadCount || 0}
-                                    </div>
+                <!-- Right content: Resource listing -->
+                <div class="lg:col-span-3">
+                    <!-- Resources grid -->
+                    <div id="resourcesContainer">
+                        ${resources.length > 0 ? `
+                            <div class="space-y-4" id="resourcesList">
+                                ${resources.map(resource => generateResourceCard(resource)).join('')}
+                            </div>
+                        ` : `
+                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+                                <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fas fa-file-alt text-gray-500 text-2xl"></i>
                                 </div>
-                            `}).join('') : `
-                                <p class="text-gray-500 dark:text-gray-400">No popular resources yet.</p>
-                            `}
-                        </div>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-                        <h3 class="text-lg font-semibold mb-4">My Activity</h3>
-                        <div>
-                            ${resources.filter(r => r.uploader && r.uploader._id === currentUser._id).length > 0 ? `
-                                <div class="space-y-2">
-                                    <p class="mb-2 text-gray-700 dark:text-gray-300">
-                                        <span class="font-semibold">My Uploads:</span> ${resources.filter(r => r.uploader && r.uploader._id === currentUser._id).length}
-                                    </p>
-                                    <p class="mb-2 text-gray-700 dark:text-gray-300">
-                                        <span class="font-semibold">Total Downloads:</span> ${resources
-                                            .filter(r => r.uploader && r.uploader._id === currentUser._id)
-                                            .reduce((total, resource) => total + (resource.downloadCount || 0), 0)}
-                                    </p>
-                                    <button id="viewMyUploadsBtn" class="mt-2 w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                                        View My Uploads
+                                <h3 class="font-semibold text-lg mb-2">No Resources Found</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-4">
+                                    ${currentCourseData ? 
+                                        'No resources have been added to this course yet.' : 
+                                        'No resources match your current filters.'}
+                                </p>
+                                ${canUpload ? `
+                                    <button id="addFirstResourceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                        Upload First Resource
                                     </button>
-                                </div>
-                            ` : `
-                                <p class="text-gray-500 dark:text-gray-400 mb-3">You haven't uploaded any resources yet.</p>
-                            `}
-                        </div>
+                                ` : ''}
+                            </div>
+                        `}
                     </div>
                 </div>
             </div>
         `;
         
-        // Helper function to get appropriate icon for file type
-        function getFileIcon(fileType) {
-            if (!fileType) return 'far fa-file';
-            
-            switch(fileType.toLowerCase()) {
-                case 'pdf': return 'far fa-file-pdf';
-                case 'doc':
-                case 'docx': return 'far fa-file-word';
-                case 'xls':
-                case 'xlsx': return 'far fa-file-excel';
-                case 'ppt':
-                case 'pptx': return 'far fa-file-powerpoint';
-                case 'jpg':
-                case 'jpeg':
-                case 'png':
-                case 'gif': return 'far fa-file-image';
-                case 'mp4':
-                case 'avi':
-                case 'mov': return 'far fa-file-video';
-                case 'mp3':
-                case 'wav': return 'far fa-file-audio';
-                case 'zip':
-                case 'rar': return 'far fa-file-archive';
-                default: return 'far fa-file';
-            }
-        }
+        // Set up event listeners
         
-        // Helper function to format file size
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        }
-        
-        // Setup event listeners
-        const uploadResourceBtn = document.getElementById('uploadResourceBtn');
-        if (uploadResourceBtn) {
-            uploadResourceBtn.addEventListener('click', () => showUploadResourceModal());
-        }
-        const uploadFirstResourceBtn = document.getElementById('uploadFirstResourceBtn');
-        if (uploadFirstResourceBtn) {
-            uploadFirstResourceBtn.addEventListener('click', () => showUploadResourceModal());
-        }
-        
-        const viewMyUploadsBtn = document.getElementById('viewMyUploadsBtn');
-        if (viewMyUploadsBtn) {
-            viewMyUploadsBtn.addEventListener('click', () => {
-                // Select the "My Uploads" filter button and trigger a click
-                const myUploadsBtn = document.querySelector('.resource-filter-btn[data-filter="myuploads"]');
-                if (myUploadsBtn) myUploadsBtn.click();
+        // Upload resource button
+        const uploadBtn = document.getElementById('uploadResourceBtn');
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', () => {
+                showUploadResourceModal(courseId);
             });
         }
         
-        // Filter buttons
-        const filterButtons = document.querySelectorAll('.resource-filter-btn');
-        filterButtons.forEach(button => {
-            button.addEventListener('click', () => {
+        const viewDetailBtn = document.querySelectorAll('.resource-card');
+        viewDetailBtn.forEach(card => {
+            card.addEventListener('click', () => {
+                const resourceId = card.dataset.id;
+                loadView('resource-detail', { resourceId });
+            });
+        });
+
+        const resourcesList = document.getElementById('resourcesList');
+        if (resourcesList) {
+            resourcesList.addEventListener('click', (e) => {
+                if (e.target.closest('.resource-card')) {
+                    const resourceId = e.target.closest('.resource-card').dataset.id;
+                    loadView('resource-detail', { resourceId });
+                }
+            });
+        }
+
+        // First resource button
+        const firstResourceBtn = document.getElementById('addFirstResourceBtn');
+        if (firstResourceBtn) {
+            firstResourceBtn.addEventListener('click', () => {
+                showUploadResourceModal(courseId);
+            });
+        }
+        
+        // Category filter buttons
+        const categoryBtns = document.querySelectorAll('.resource-category-btn');
+        categoryBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
                 // Update active state
-                filterButtons.forEach(btn => {
-                    btn.classList.remove('bg-primary', 'text-white');
-                    btn.classList.add('bg-gray-200', 'dark:bg-gray-700');
+                categoryBtns.forEach(b => {
+                    b.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
                 });
-                button.classList.remove('bg-gray-200', 'dark:bg-gray-700');
-                button.classList.add('bg-primary', 'text-white');
+                btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
                 
-                const filter = button.dataset.filter;
-                const items = document.querySelectorAll('.resource-item');
-                
-                items.forEach(item => {
-                    if (filter === 'all') {
-                        item.classList.remove('hidden');
-                    } else if (filter === 'documents') {
-                        const fileType = item.dataset.type ? item.dataset.type.toLowerCase() : 'unknown';  // Ensure dataset.type is defined
-                        const isDocument = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'].some(ext => fileType.includes(ext));
-                        item.classList.toggle('hidden', !isDocument);
-                    }
-                    
-                     else if (filter === 'videos') {
-                        const fileType = item.dataset.type.toLowerCase();
-                        const isVideo = ['mp4', 'avi', 'mov', 'webm'].includes(fileType);
-                        item.classList.toggle('hidden', !isVideo);
-                    } else if (filter === 'myuploads') {
-                        const isMyUpload = item.dataset.myupload === 'true';
-                        item.classList.toggle('hidden', !isMyUpload);
-                    }
-                });
-                
-                // Apply course filter if selected
-                applyCourseFilter();
+                // Apply filter
+                filterResources();
             });
         });
         
         // Course filter
         const courseFilter = document.getElementById('courseFilter');
         if (courseFilter) {
-            courseFilter.addEventListener('change', applyCourseFilter);
+            courseFilter.addEventListener('change', () => {
+                if (courseFilter.value !== 'all') {
+                    // Redirect to the course resources page
+                    loadResources(courseFilter.value);
+                } else {
+                    // Just apply filters
+                    filterResources();
+                }
+            });
         }
         
-        function applyCourseFilter() {
-            const courseFilter = document.getElementById('courseFilter');
-            if (!courseFilter) return;
-            
-            const courseId = courseFilter.value;
-            const items = document.querySelectorAll('.resource-item:not(.hidden)');
-            
-            items.forEach(item => {
-                if (courseId === 'all') {
-                    item.classList.remove('hidden-by-course');
+        // Resource type filter
+        const typeFilters = document.querySelectorAll('.resource-type-filter');
+        typeFilters.forEach(filter => {
+            filter.addEventListener('change', (e) => {
+                // Handle "All Types" checkbox
+                if (e.target.value === 'all') {
+                    typeFilters.forEach(f => {
+                        if (f !== e.target) {
+                            f.checked = false;
+                        }
+                    });
                 } else {
-                    const itemCourseId = item.dataset.course;
-                    item.classList.toggle('hidden-by-course', itemCourseId !== courseId);
+                    // If a specific type is checked, uncheck "All Types"
+                    document.querySelector('.resource-type-filter[value="all"]').checked = false;
+                    
+                    // If no specific types are checked, check "All Types"
+                    const anyChecked = Array.from(typeFilters).some(f => f.value !== 'all' && f.checked);
+                    if (!anyChecked) {
+                        document.querySelector('.resource-type-filter[value="all"]').checked = true;
+                    }
                 }
                 
-                // Finally check both filters
-                item.style.display = (item.classList.contains('hidden') || item.classList.contains('hidden-by-course')) ? 'none' : '';
+                // Apply filters
+                filterResources();
             });
-        }
-        
-        // Sort dropdown
-        const resourceSort = document.getElementById('resourceSort');
-        if (resourceSort) {
-            resourceSort.addEventListener('change', () => {
-                const sortValue = resourceSort.value;
-                const resourcesList = document.getElementById('resourcesList');
-                const items = Array.from(resourcesList.querySelectorAll('.resource-item'));
-                
-                // Sort the items
-                items.sort((a, b) => {
-                    // Safely extract resource IDs using try/catch to prevent errors
-                    let aId, bId;
-                    try {
-                        aId = a.getAttribute('onclick').match(/resourceId: '([^']+)'/)[1];
-                    } catch (e) {
-                        console.warn('Could not extract resource ID from item', a);
-                        aId = '';
-                    }
-                    
-                    try {
-                        bId = b.getAttribute('onclick').match(/resourceId: '([^']+)'/)[1];
-                    } catch (e) {
-                        console.warn('Could not extract resource ID from item', b);
-                        bId = '';
-                    }
-                    
-                    const aData = resources.find(r => r._id === aId) || {};
-                    const bData = resources.find(r => r._id === bId) || {};
-                    
-                    if (sortValue === 'latest') {
-                        const aDate = aData.createdAt ? new Date(aData.createdAt) : new Date(0);
-                        const bDate = bData.createdAt ? new Date(bData.createdAt) : new Date(0);
-                        return bDate - aDate;
-                    } else if (sortValue === 'downloads') {
-                        return (bData.downloadCount || 0) - (aData.downloadCount || 0);
-                    } else if (sortValue === 'name') {
-                        return (aData.title || '').localeCompare(bData.title || '');
-                    }
-                    return 0;
-                });
-                
-                // Re-append the items in the new order
-                items.forEach(item => resourcesList.appendChild(item));
-            });
-        }
+        });
         
         // Search input
         const searchInput = document.getElementById('searchResources');
         if (searchInput) {
             searchInput.addEventListener('input', () => {
-                const searchTerm = searchInput.value.toLowerCase();
-                const items = document.querySelectorAll('.resource-item');
-                
-                items.forEach(item => {
-                    const title = item.querySelector('h4')?.textContent.toLowerCase() || '';
-                    const description = item.querySelector('p.line-clamp-2')?.textContent.toLowerCase() || '';
-                    const hasMatch = title.includes(searchTerm) || description.includes(searchTerm);
-                    
-                    item.classList.toggle('hidden-by-search', !hasMatch);
-                    
-                    // Check all filter states
-                    item.style.display = (
-                        item.classList.contains('hidden') || 
-                        item.classList.contains('hidden-by-course') ||
-                        item.classList.contains('hidden-by-search')
-                    ) ? 'none' : '';
-                });
+                filterResources();
             });
         }
         
-        // Load more button
-        const loadMoreBtn = document.getElementById('loadMoreBtn');
-        if (loadMoreBtn) {
-            // In a real app, this would load the next page of resources
-            // For now, we'll just hide the button after clicking
-            loadMoreBtn.addEventListener('click', () => {
-                loadMoreBtn.textContent = 'No more resources to load';
-                loadMoreBtn.disabled = true;
-                loadMoreBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        // Sort selection
+        const sortSelect = document.getElementById('resourceSort');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', () => {
+                filterResources();
             });
         }
         
@@ -3462,7 +3365,7 @@ async function loadResources() {
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading resources</p>
                 <p>${error.message || 'Failed to load resources'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadView('resources')">
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadResources(${courseId ? `'${courseId}'` : ''})">
                     Try Again
                 </button>
             </div>
@@ -3470,6 +3373,1069 @@ async function loadResources() {
     }
 }
 
+/**
+ * Generate HTML for a resource card
+ * @param {Object} resource - The resource data
+ * @returns {string} HTML string for the resource card
+ */
+function generateResourceCard(resource) {
+    // Get course details
+    const course = resource.course || {};
+    const courseName = typeof course === 'object' ? (course.name || 'Unknown Course') : 'Unknown Course';
+    const courseCode = typeof course === 'object' ? (course.code || '') : '';
+    const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
+    
+    // Get user details
+    const addedBy = resource.addedBy || {};
+    const userName = typeof addedBy === 'object' ? 
+        `${addedBy.firstName || ''} ${addedBy.lastName || ''}`.trim() : 'Unknown User';
+    
+    // Format dates
+    const addedDate = formatDate(resource.createdAt);
+    const updatedDate = resource.updatedAt ? formatDate(resource.updatedAt) : '';
+    
+    // Get resource statistics
+    const viewCount = resource.viewCount || 0;
+    const likeCount = resource.likes?.length || 0;
+    const commentCount = resource.comments?.length || 0;
+    
+    // Determine if resource is pinned
+    const isPinned = resource.isPinned || false;
+    
+    // Determine if current user has liked the resource
+    const isLiked = resource.likes?.includes(currentUser._id) || false;
+    
+    // Determine if user can edit/delete
+    const canModify = 
+        currentUser._id === (typeof resource.addedBy === 'object' ? resource.addedBy._id : resource.addedBy) ||
+        currentUser.role === 'admin';
+    
+    return `
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition resource-card"
+            data-id="${resource._id}"
+            data-title="${resource.title}"
+            data-type="${resource.type}"
+            data-category="${resource.category || 'other'}"
+            data-course="${typeof resource.course === 'object' ? resource.course._id : resource.course}"
+            data-views="${viewCount}"
+            data-likes="${likeCount}">
+            
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex items-start">
+                        ${getResourceTypeIcon(resource)}
+                        <div class="ml-3">
+                            <h3 class="font-semibold text-lg">
+                                <a href="#" class="hover:text-primary dark:hover:text-primaryLight resource-title-link" data-id="${resource._id}">
+                                    ${resource.title}
+                                </a>
+                                ${isPinned ? '<i class="fas fa-thumbtack ml-2 text-yellow-500 dark:text-yellow-400" title="Pinned"></i>' : ''}
+                            </h3>
+                            <div class="flex items-center mt-1">
+                                <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
+                                    ${courseCode}
+                                </span>
+                                <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">
+                                    ${getCategoryLabel(resource.category)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="resource-actions relative">
+                        <button class="resource-menu-btn p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="resource-menu absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-lg py-2 w-40 z-10 hidden">
+                            <a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750 resource-view-btn" data-id="${resource._id}">
+                                <i class="fas fa-eye mr-2"></i> View Details
+                            </a>
+                            ${resource.type === 'file' ? `
+                                <a href="${resource.file?.filePath || '#'}" target="_blank" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750">
+                                    <i class="fas fa-download mr-2"></i> Download
+                                </a>
+                            ` : resource.type === 'link' ? `
+                                <a href="${resource.link}" target="_blank" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750">
+                                    <i class="fas fa-external-link-alt mr-2"></i> Open Link
+                                </a>
+                            ` : ''}
+                            ${canModify ? `
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750 resource-edit-btn" data-id="${resource._id}">
+                                    <i class="fas fa-edit mr-2"></i> Edit
+                                </a>
+                                <a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750 text-red-600 dark:text-red-400 resource-delete-btn" data-id="${resource._id}">
+                                    <i class="fas fa-trash mr-2"></i> Delete
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                <p class="text-gray-600 dark:text-gray-300 text-sm mb-3 line-clamp-2">
+                    ${resource.description || 'No description provided.'}
+                </p>
+                
+                <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    <span>Added by ${userName}</span>
+                    <span class="mx-2">•</span>
+                    <span>${addedDate}</span>
+                    ${updatedDate && updatedDate !== addedDate ? `
+                        <span class="mx-2">•</span>
+                        <span>Updated ${formatTimeAgo(resource.updatedAt)}</span>
+                    ` : ''}
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div class="flex space-x-4">
+                        <button class="resource-like-btn flex items-center text-sm ${isLiked ? 'text-primary dark:text-primaryLight' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primaryLight'}" data-id="${resource._id}" data-liked="${isLiked}">
+                            <i class="${isLiked ? 'fas' : 'far'} fa-heart mr-1"></i>
+                            <span class="resource-like-count">${likeCount}</span>
+                        </button>
+                        <button class="resource-comment-btn flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primaryLight" data-id="${resource._id}">
+                            <i class="far fa-comment mr-1"></i>
+                            <span>${commentCount}</span>
+                        </button>
+                        <span class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <i class="far fa-eye mr-1"></i>
+                            <span>${viewCount}</span>
+                        </span>
+                    </div>
+                    <a href="#" class="text-primary dark:text-primaryLight hover:underline text-sm resource-view-btn" data-id="${resource._id}">View Details</a>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Get category label for display
+ * @param {string} category - Category identifier
+ * @returns {string} Display label for the category
+ */
+function getCategoryLabel(category) {
+    const categories = {
+        'lecture': 'Lecture Materials',
+        'reading': 'Reading Materials',
+        'exercise': 'Practice Exercises',
+        'assignment': 'Assignment Materials',
+        'reference': 'Reference Materials',
+        'other': 'Other Resources'
+    };
+    
+    return categories[category] || 'Other Resources';
+}
+
+/**
+ * Get appropriate icon for resource type
+ * @param {Object} resource - The resource object
+ * @returns {string} HTML for the resource icon
+ */
+function getResourceTypeIcon(resource) {
+    let iconHtml = '';
+    const size = 'text-2xl';
+    
+    if (resource.type === 'file') {
+        const fileType = resource.file?.fileType || '';
+        if (fileType.includes('pdf')) {
+            iconHtml = `<i class="far fa-file-pdf text-red-500 ${size}"></i>`;
+        } else if (fileType.includes('word') || fileType.includes('document')) {
+            iconHtml = `<i class="far fa-file-word text-blue-500 ${size}"></i>`;
+        } else if (fileType.includes('excel') || fileType.includes('spreadsheet')) {
+            iconHtml = `<i class="far fa-file-excel text-green-500 ${size}"></i>`;
+        } else if (fileType.includes('powerpoint') || fileType.includes('presentation')) {
+            iconHtml = `<i class="far fa-file-powerpoint text-orange-500 ${size}"></i>`;
+        } else if (fileType.includes('image')) {
+            iconHtml = `<i class="far fa-file-image text-purple-500 ${size}"></i>`;
+        } else if (fileType.includes('video')) {
+            iconHtml = `<i class="far fa-file-video text-pink-500 ${size}"></i>`;
+        } else if (fileType.includes('audio')) {
+            iconHtml = `<i class="far fa-file-audio text-yellow-500 ${size}"></i>`;
+        } else if (fileType.includes('zip') || fileType.includes('archive')) {
+            iconHtml = `<i class="far fa-file-archive text-gray-500 ${size}"></i>`;
+        } else if (fileType.includes('code') || fileType.includes('text/')) {
+            iconHtml = `<i class="far fa-file-code text-gray-500 ${size}"></i>`;
+        } else {
+            iconHtml = `<i class="far fa-file text-gray-500 ${size}"></i>`;
+        }
+    } else if (resource.type === 'link') {
+        iconHtml = `<i class="fas fa-link text-blue-500 ${size}"></i>`;
+    } else if (resource.type === 'text') {
+        iconHtml = `<i class="far fa-file-alt text-gray-500 ${size}"></i>`;
+    } else {
+        iconHtml = `<i class="far fa-file text-gray-500 ${size}"></i>`;
+    }
+    
+    return iconHtml;
+}
+
+/**
+ * Filter resources based on current filter settings
+ */
+function filterResources() {
+    // Get filter values
+    const searchTerm = document.getElementById('searchResources').value.toLowerCase();
+    const selectedCategory = document.querySelector('.resource-category-btn.bg-primary')?.dataset.category || 'all';
+    const sortBy = document.getElementById('resourceSort').value;
+    
+    // Get selected types
+    const allTypesSelected = document.querySelector('.resource-type-filter[value="all"]').checked;
+    const selectedTypes = allTypesSelected ? ['file', 'link', 'text'] : 
+        Array.from(document.querySelectorAll('.resource-type-filter:checked'))
+            .map(checkbox => checkbox.value)
+            .filter(value => value !== 'all');
+    
+    // Get all resource cards
+    const resourceCards = document.querySelectorAll('.resource-card');
+    
+    // Filter resources
+    resourceCards.forEach(card => {
+        const title = card.dataset.title.toLowerCase();
+        const category = card.dataset.category;
+        const type = card.dataset.type;
+        
+        const matchesSearch = title.includes(searchTerm);
+        const matchesCategory = selectedCategory === 'all' || category === selectedCategory;
+        const matchesType = selectedTypes.includes(type);
+        
+        if (matchesSearch && matchesCategory && matchesType) {
+            card.classList.remove('hidden');
+        } else {
+            card.classList.add('hidden');
+        }
+    });
+    
+    // Sort visible resources
+    const resourcesList = document.getElementById('resourcesList');
+    if (resourcesList) {
+        const visibleCards = Array.from(resourceCards).filter(card => !card.classList.contains('hidden'));
+        
+        visibleCards.sort((a, b) => {
+            if (sortBy === 'title') {
+                return a.dataset.title.localeCompare(b.dataset.title);
+            } else if (sortBy === 'likes') {
+                return parseInt(b.dataset.likes) - parseInt(a.dataset.likes);
+            } else if (sortBy === 'views') {
+                return parseInt(b.dataset.views) - parseInt(a.dataset.views);
+            } else {
+                // Default: sort by recent (based on DOM order as we initially sorted by createdAt)
+                return 0;
+            }
+        });
+        
+        // Re-append sorted cards
+        visibleCards.forEach(card => resourcesList.appendChild(card));
+    }
+    
+    // Show/hide empty state
+    const resourcesContainer = document.getElementById('resourcesContainer');
+    const visibleCount = Array.from(resourceCards).filter(card => !card.classList.contains('hidden')).length;
+    
+    if (visibleCount === 0) {
+        // Show empty state if no resources match filters
+        const courseId = document.getElementById('courseFilter')?.value;
+        resourcesContainer.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+                <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-filter text-gray-500 text-2xl"></i>
+                </div>
+                <h3 class="font-semibold text-lg mb-2">No Resources Found</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">
+                    No resources match your current filters.
+                </p>
+                <button id="clearFiltersBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                    Clear Filters
+                </button>
+            </div>
+        `;
+        
+        // Set up clear filters button
+        document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+            // Reset search
+            document.getElementById('searchResources').value = '';
+            
+            // Reset category
+            document.querySelector('.resource-category-btn[data-category="all"]').click();
+            
+            // Reset type filters
+            document.querySelector('.resource-type-filter[value="all"]').checked = true;
+            document.querySelectorAll('.resource-type-filter:not([value="all"])').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Reset sort
+            document.getElementById('resourceSort').value = 'recent';
+            
+            // Reload resources
+            loadResources(courseId === 'all' ? null : courseId);
+        });
+    }
+}
+
+/**
+ * Add event listeners for resource cards after they're loaded
+ */
+function setupResourceCardListeners() {
+    // Resource menu toggles
+    document.querySelectorAll('.resource-menu-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = btn.nextElementSibling;
+            menu.classList.toggle('hidden');
+            
+            // Close all other open menus
+            document.querySelectorAll('.resource-menu:not(.hidden)').forEach(openMenu => {
+                if (openMenu !== menu) {
+                    openMenu.classList.add('hidden');
+                }
+            });
+        });
+    });
+    
+    // Close menus when clicking outside
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.resource-menu:not(.hidden)').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+    });
+    
+    // Like buttons
+    document.querySelectorAll('.resource-like-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const resourceId = btn.dataset.id;
+            const isLiked = btn.dataset.liked === 'true';
+            
+            try {
+                if (isLiked) {
+                    await resourceService.unlikeResource(resourceId);
+                    btn.dataset.liked = 'false';
+                    btn.querySelector('i').classList.remove('fas');
+                    btn.querySelector('i').classList.add('far');
+                } else {
+                    await resourceService.likeResource(resourceId);
+                    btn.dataset.liked = 'true';
+                    btn.querySelector('i').classList.remove('far');
+                    btn.querySelector('i').classList.add('fas');
+                }
+                
+                // Update like count
+                const response = await resourceService.getResource(resourceId);
+                const likeCount = response.data.resource.likes?.length || 0;
+                btn.querySelector('.resource-like-count').textContent = likeCount;
+                
+                // Update the card's dataset for sorting
+                const card = document.querySelector(`.resource-card[data-id="${resourceId}"]`);
+                if (card) {
+                    card.dataset.likes = likeCount;
+                }
+                
+            } catch (error) {
+                console.error('Error toggling resource like:', error);
+                showToast('Failed to update like status', 'error');
+            }
+        });
+    });
+    
+    // View buttons
+    document.querySelectorAll('.resource-view-btn, .resource-title-link').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const resourceId = btn.dataset.id;
+            loadResourceDetail(resourceId);
+        });
+    });
+    
+    // Comment buttons
+    document.querySelectorAll('.resource-comment-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const resourceId = btn.dataset.id;
+            loadResourceDetail(resourceId, 'comments');
+        });
+    });
+    
+    // Edit buttons
+    document.querySelectorAll('.resource-edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const resourceId = btn.dataset.id;
+            showEditResourceModal(resourceId);
+        });
+    });
+    
+    // Delete buttons
+    document.querySelectorAll('.resource-delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const resourceId = btn.dataset.id;
+            
+            if (confirm('Are you sure you want to delete this resource? This action cannot be undone.')) {
+                deleteResource(resourceId);
+            }
+        });
+    });
+}
+
+/**
+ * Load detailed view of a resource
+ * @param {string} resourceId - ID of the resource to view
+ * @param {string} activeTab - Optional tab to activate (info, comments)
+ * @returns {Promise<void>}
+ */
+async function loadResourceDetail(resourceId, activeTab = 'info') {
+    try {
+        // Show loading state
+        content.innerHTML = `
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
+        
+        // Fetch resource details
+        const response = await resourceService.getResource(resourceId);
+        const resource = response.data.resource;
+        
+        // Increase view count if not already viewed in this session
+        const viewedResources = JSON.parse(sessionStorage.getItem('viewedResources') || '[]');
+        if (!viewedResources.includes(resourceId)) {
+            try {
+                await resourceService.recordResourceView(resourceId);
+                viewedResources.push(resourceId);
+                sessionStorage.setItem('viewedResources', JSON.stringify(viewedResources));
+            } catch (error) {
+                console.warn('Could not record resource view:', error);
+            }
+        }
+        
+        // Get course details
+        const course = resource.course || {};
+        const courseName = typeof course === 'object' ? (course.name || 'Unknown Course') : 'Unknown Course';
+        const courseCode = typeof course === 'object' ? (course.code || '') : '';
+        const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
+        const courseId = typeof course === 'object' ? course._id : course;
+        
+        // Get user details
+        const addedBy = resource.addedBy || {};
+        const userName = typeof addedBy === 'object' ? 
+            `${addedBy.firstName || ''} ${addedBy.lastName || ''}`.trim() : 'Unknown User';
+        
+        // Determine if user can edit/delete/pin
+        const canModify = 
+            currentUser._id === (typeof resource.addedBy === 'object' ? resource.addedBy._id : resource.addedBy) ||
+            currentUser.role === 'admin';
+        
+        const canPin = currentUser.role === 'instructor' || currentUser.role === 'admin';
+        
+        // Get resource statistics
+        const viewCount = resource.viewCount || 0;
+        const likeCount = resource.likes?.length || 0;
+        const commentCount = resource.comments?.length || 0;
+        
+        // Check if user has liked this resource
+        const isLiked = resource.likes?.includes(currentUser._id) || false;
+        
+        // Determine if resource is pinned
+        const isPinned = resource.isPinned || false;
+        
+        // Prepare comments
+        const comments = resource.comments || [];
+        
+        // Sort comments newest first
+        comments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        // Build the view
+        content.innerHTML = `
+            <div class="mb-6">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button id="backToResourcesBtn" class="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primaryLight">
+                        <i class="fas fa-arrow-left mr-1"></i> Back to Resources
+                    </button>
+                    ${courseCode ? `
+                        <span class="text-gray-500 dark:text-gray-400">•</span>
+                        <a href="#" onclick="event.preventDefault(); loadView('course-detail', {courseId: '${courseId}'});" class="text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primaryLight">
+                            ${courseCode}
+                        </a>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left content: Resource details -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="flex items-start">
+                                ${getResourceTypeIcon(resource)}
+                                <div class="ml-3">
+                                    <h1 class="text-2xl font-bold">${resource.title}</h1>
+                                    <div class="flex items-center mt-1">
+                                        <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
+                                            ${courseCode}
+                                        </span>
+                                        <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                                            ${getCategoryLabel(resource.category)}
+                                        </span>
+                                        ${isPinned ? `
+                                            <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                                            <span class="text-xs font-medium text-yellow-500 dark:text-yellow-400">
+                                                <i class="fas fa-thumbtack mr-1"></i> Pinned
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${canModify || canPin ? `
+                                <div class="relative">
+                                    <button id="resourceActionsBtn" class="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div id="resourceActionsMenu" class="absolute right-0 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-lg py-2 w-40 z-10 hidden">
+                                        ${canModify ? `
+                                            <a href="#" id="editResourceBtn" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750">
+                                                <i class="fas fa-edit mr-2"></i> Edit
+                                            </a>
+                                            <a href="#" id="deleteResourceBtn" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750 text-red-600 dark:text-red-400">
+                                                <i class="fas fa-trash mr-2"></i> Delete
+                                            </a>
+                                        ` : ''}
+                                        ${canPin ? `
+                                            <a href="#" id="togglePinBtn" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750">
+                                                <i class="fas ${isPinned ? 'fa-thumbtack' : 'fa-thumbtack'} mr-2"></i> ${isPinned ? 'Unpin' : 'Pin'} Resource
+                                            </a>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            <span>Added by ${userName}</span>
+                            <span class="mx-2">•</span>
+                            <span>${formatDate(resource.createdAt)}</span>
+                            ${resource.updatedAt && resource.updatedAt !== resource.createdAt ? `
+                                <span class="mx-2">•</span>
+                                <span>Updated ${formatTimeAgo(resource.updatedAt)}</span>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="flex items-center space-x-6 text-sm mb-6">
+                            <button id="likeResourceBtn" class="flex items-center ${isLiked ? 'text-primary dark:text-primaryLight' : 'text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primaryLight'}">
+                                <i class="${isLiked ? 'fas' : 'far'} fa-heart mr-1"></i>
+                                <span id="likeCount">${likeCount}</span>
+                            </button>
+                            <span class="flex items-center text-gray-500 dark:text-gray-400">
+                                <i class="far fa-comment mr-1"></i>
+                                <span id="commentCount">${commentCount}</span>
+                            </span>
+                            <span class="flex items-center text-gray-500 dark:text-gray-400">
+                                <i class="far fa-eye mr-1"></i>
+                                <span>${viewCount}</span>
+                            </span>
+                        </div>
+                        
+                        <!-- Tabs for resource content -->
+                        <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
+                            <div class="flex">
+                                <button id="infoTab" class="resource-tab px-4 py-2 border-b-2 ${activeTab === 'info' ? 'border-primary text-primary dark:text-primaryLight' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+                                    Information
+                                </button>
+                                <button id="commentsTab" class="resource-tab px-4 py-2 border-b-2 ${activeTab === 'comments' ? 'border-primary text-primary dark:text-primaryLight' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">
+                                    Comments (${commentCount})
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Info tab content -->
+                        <div id="infoTabContent" class="resource-tab-content ${activeTab !== 'info' ? 'hidden' : ''}">
+                            <div class="mb-6">
+                                <h2 class="font-semibold text-lg mb-3">Description</h2>
+                                <div class="prose dark:prose-invert max-w-none">
+                                    ${resource.description ? marked.parse(resource.description) : '<p class="text-gray-500 dark:text-gray-400">No description provided.</p>'}
+                                </div>
+                            </div>
+                            
+                            ${resource.type === 'file' ? `
+                                <div class="mb-6">
+                                    <h2 class="font-semibold text-lg mb-3">File</h2>
+                                    <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            ${getResourceTypeIcon(resource)}
+                                            <div class="ml-3">
+                                                <p class="font-medium">${resource.file?.fileName || 'File'}</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                    ${formatFileSize(resource.file?.fileSize)} • ${resource.file?.fileType || 'Unknown type'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <a href="${resource.file?.filePath || '#'}" target="_blank" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                            <i class="fas fa-download mr-1"></i> Download
+                                        </a>
+                                    </div>
+                                </div>
+                            ` : resource.type === 'link' ? `
+                                <div class="mb-6">
+                                    <h2 class="font-semibold text-lg mb-3">External Link</h2>
+                                    <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-link text-blue-500 text-2xl"></i>
+                                            <div class="ml-3">
+                                                <p class="font-medium">${resource.title}</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                                                    ${resource.link || 'Link'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <a href="${resource.link || '#'}" target="_blank" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                            <i class="fas fa-external-link-alt mr-1"></i> Open Link
+                                        </a>
+                                    </div>
+                                </div>
+                            ` : resource.type === 'text' ? `
+                                <div class="mb-6">
+                                    <h2 class="font-semibold text-lg mb-3">Content</h2>
+                                    <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4">
+                                        <div class="prose dark:prose-invert max-w-none">
+                                            ${resource.content ? marked.parse(resource.content) : '<p class="text-gray-500 dark:text-gray-400">No content provided.</p>'}
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        
+                        <!-- Comments tab content -->
+                        <div id="commentsTabContent" class="resource-tab-content ${activeTab !== 'comments' ? 'hidden' : ''}">
+                            <div class="mb-6">
+                                <h2 class="font-semibold text-lg mb-3">Comments</h2>
+                                
+                                <!-- Comment form -->
+                                <form id="commentForm" class="mb-6">
+                                    <textarea id="commentContent" rows="3" placeholder="Add your comment..." class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200"></textarea>
+                                    <div class="flex justify-end mt-2">
+                                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                            Post Comment
+                                        </button>
+                                    </div>
+                                </form>
+                                
+                                <!-- Comments list -->
+                                <div id="commentsList">
+                                    ${comments.length > 0 ? comments.map(comment => `
+                                        <div class="comment-item p-4 border border-gray-200 dark:border-gray-700 rounded-lg mb-4" data-id="${comment._id}">
+                                            <div class="flex justify-between items-start mb-2">
+                                                <div class="flex items-center">
+                                                    <img src="${getProfileImageUrl(comment.user)}" alt="${comment.user?.firstName || 'User'}" class="w-8 h-8 rounded-full mr-3">
+                                                    <div>
+                                                        <p class="font-medium">${comment.user?.firstName || ''} ${comment.user?.lastName || ''}</p>
+                                                        <p class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(comment.createdAt)}</p>
+                                                    </div>
+                                                </div>
+                                                ${(currentUser._id === (comment.user?._id || comment.user)) || currentUser.role === 'admin' ? `
+                                                    <div class="relative">
+                                                        <button class="comment-menu-btn p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                                            <i class="fas fa-ellipsis-v"></i>
+                                                        </button>
+                                                        <div class="comment-menu absolute right-0 mt-1 bg-white dark:bg-gray-800 shadow-lg rounded-lg py-2 w-32 z-10 hidden">
+                                                            <a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750 comment-edit-btn" data-id="${comment._id}">
+                                                                <i class="fas fa-edit mr-2"></i> Edit
+                                                            </a>
+                                                            <a href="#" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750 text-red-600 dark:text-red-400 comment-delete-btn" data-id="${comment._id}">
+                                                                <i class="fas fa-trash mr-2"></i> Delete
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                            <div class="comment-content ml-11">
+                                                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-line">${comment.content}</p>
+                                            </div>
+                                            <!-- Edit form (hidden by default) -->
+                                            <div class="comment-edit-form ml-11 mt-2 hidden">
+                                                <textarea class="edit-comment-content w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200" rows="3">${comment.content}</textarea>
+                                                <div class="flex justify-end mt-2 space-x-2">
+                                                    <button type="button" class="cancel-edit-btn px-3 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="button" class="save-comment-btn px-3 py-1 bg-primary hover:bg-primaryDark text-white text-sm rounded-lg transition" data-id="${comment._id}">
+                                                        Save
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') : `
+                                        <div class="text-center py-6">
+                                            <p class="text-gray-500 dark:text-gray-400">No comments yet. Be the first to comment!</p>
+                                        </div>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right sidebar: Related resources and info -->
+                <div class="lg:col-span-1">
+                    <!-- Resource actions card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
+                        <h2 class="font-semibold text-lg mb-4">Resource Actions</h2>
+                        
+                        <div class="space-y-3">
+                            ${resource.type === 'file' ? `
+                                <a href="${resource.file?.filePath || '#'}" target="_blank" class="flex items-center justify-center w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    <i class="fas fa-download mr-2"></i> Download File
+                                </a>
+                            ` : resource.type === 'link' ? `
+                                <a href="${resource.link || '#'}" target="_blank" class="flex items-center justify-center w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    <i class="fas fa-external-link-alt mr-2"></i> Visit Link
+                                </a>
+                            ` : ''}
+                            
+                            <button id="shareResourceBtn" class="flex items-center justify-center w-full px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark rounded-lg transition">
+                                <i class="fas fa-share-alt mr-2"></i> Share Resource
+                            </button>
+                            
+                            ${resource.course ? `
+                                <a href="#" onclick="event.preventDefault(); loadView('course-detail', {courseId: '${courseId}'});" class="flex items-center justify-center w-full px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                    <i class="fas fa-book mr-2"></i> View Course
+                                </a>
+                            ` : ''}
+                            
+                            <a href="#" onclick="event.preventDefault(); loadResources('${courseId}');" class="flex items-center justify-center w-full px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                <i class="fas fa-list mr-2"></i> All Resources
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Course information card -->
+                    ${resource.course ? `
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
+                            <h2 class="font-semibold text-lg mb-4">Course Information</h2>
+                            
+                            <div>
+                                <p class="font-medium">${courseName}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">${courseCode}</p>
+                                
+                                <div class="flex items-center mb-4">
+                                    <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor?.firstName || 'Instructor'}" class="w-6 h-6 rounded-full mr-2">
+                                    <span class="text-sm">${course.instructor?.firstName || ''} ${course.instructor?.lastName || ''}</span>
+                                </div>
+                                
+                                <a href="#" onclick="event.preventDefault(); loadView('course-detail', {courseId: '${courseId}'});" class="text-primary dark:text-primaryLight hover:underline text-sm">
+                                    View Course Details
+                                </a>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <!-- Related resources card (placeholder) -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                        <h2 class="font-semibold text-lg mb-4">Related Resources</h2>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            Related resources will appear here automatically.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Set up event listeners
+        
+        // Back button
+        document.getElementById('backToResourcesBtn').addEventListener('click', () => {
+            // Go back to course resources if this was from a course
+            if (courseId) {
+                loadResources(courseId);
+            } else {
+                loadResources();
+            }
+        });
+        
+        // Tabs
+        document.getElementById('infoTab').addEventListener('click', () => {
+            document.getElementById('infoTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('infoTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            document.getElementById('commentsTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('commentsTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            
+            document.getElementById('infoTabContent').classList.remove('hidden');
+            document.getElementById('commentsTabContent').classList.add('hidden');
+        });
+        
+        document.getElementById('commentsTab').addEventListener('click', () => {
+            document.getElementById('commentsTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('commentsTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            document.getElementById('infoTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
+            document.getElementById('infoTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+            
+            document.getElementById('commentsTabContent').classList.remove('hidden');
+            document.getElementById('infoTabContent').classList.add('hidden');
+        });
+        
+        // Like button
+        const likeBtn = document.getElementById('likeResourceBtn');
+        if (likeBtn) {
+            likeBtn.addEventListener('click', async () => {
+                try {
+                    if (isLiked) {
+                        await resourceService.unlikeResource(resourceId);
+                        likeBtn.classList.remove('text-primary', 'dark:text-primaryLight');
+                        likeBtn.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-primary', 'dark:hover:text-primaryLight');
+                        likeBtn.querySelector('i').classList.remove('fas');
+                        likeBtn.querySelector('i').classList.add('far');
+                    } else {
+                        await resourceService.likeResource(resourceId);
+                        likeBtn.classList.add('text-primary', 'dark:text-primaryLight');
+                        likeBtn.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-primary', 'dark:hover:text-primaryLight');
+                        likeBtn.querySelector('i').classList.remove('far');
+                        likeBtn.querySelector('i').classList.add('fas');
+                    }
+                    
+                    // Update like count
+                    const updatedResponse = await resourceService.getResource(resourceId);
+                    const updatedResource = updatedResponse.data.resource;
+                    document.getElementById('likeCount').textContent = updatedResource.likes?.length || 0;
+                    
+                } catch (error) {
+                    console.error('Error toggling resource like:', error);
+                    showToast('Failed to update like status', 'error');
+                }
+            });
+        }
+        
+        // Resource actions menu toggle
+        const actionsBtn = document.getElementById('resourceActionsBtn');
+        const actionsMenu = document.getElementById('resourceActionsMenu');
+        if (actionsBtn && actionsMenu) {
+            actionsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                actionsMenu.classList.toggle('hidden');
+            });
+            
+            document.addEventListener('click', () => {
+                actionsMenu.classList.add('hidden');
+            });
+        }
+        
+        // Edit resource button
+        const editBtn = document.getElementById('editResourceBtn');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showEditResourceModal(resourceId);
+            });
+        }
+        
+        // Delete resource button
+        const deleteBtn = document.getElementById('deleteResourceBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                if (confirm('Are you sure you want to delete this resource? This action cannot be undone.')) {
+                    deleteResource(resourceId);
+                }
+            });
+        }
+        
+        // Toggle pin button
+        const togglePinBtn = document.getElementById('togglePinBtn');
+        if (togglePinBtn) {
+            togglePinBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                
+                try {
+                    if (isPinned) {
+                        await resourceService.unpinResource(resourceId);
+                        showToast('Resource unpinned successfully');
+                    } else {
+                        await resourceService.pinResource(resourceId);
+                        showToast('Resource pinned successfully');
+                    }
+                    
+                    // Reload the resource detail view
+                    loadResourceDetail(resourceId, activeTab);
+                } catch (error) {
+                    console.error('Error toggling pin status:', error);
+                    showToast('Failed to update pin status', 'error');
+                }
+            });
+        }
+        
+        // Share resource button
+        const shareBtn = document.getElementById('shareResourceBtn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => {
+                // Create a temporary input to copy the URL
+                const tempInput = document.createElement('input');
+                tempInput.value = window.location.origin + window.location.pathname + '?view=resource-detail&resourceId=' + resourceId;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                
+                showToast('Resource link copied to clipboard!');
+            });
+        }
+        
+        // Comment form
+        const commentForm = document.getElementById('commentForm');
+        if (commentForm) {
+            commentForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const content = document.getElementById('commentContent').value.trim();
+                if (!content) {
+                    showToast('Please enter a comment', 'error');
+                    return;
+                }
+                
+                try {
+                    // Submit the comment
+                    await resourceService.addComment(resourceId, { content });
+                    
+                    // Clear the form
+                    document.getElementById('commentContent').value = '';
+                    
+                    // Reload the resource detail view with comments tab active
+                    loadResourceDetail(resourceId, 'comments');
+                } catch (error) {
+                    console.error('Error adding comment:', error);
+                    showToast('Failed to add comment', 'error');
+                }
+            });
+        }
+        
+        // Comment menu toggles
+        document.querySelectorAll('.comment-menu-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const menu = btn.nextElementSibling;
+                menu.classList.toggle('hidden');
+                
+                // Close all other menus
+                document.querySelectorAll('.comment-menu:not(.hidden)').forEach(openMenu => {
+                    if (openMenu !== menu) {
+                        openMenu.classList.add('hidden');
+                    }
+                });
+            });
+        });
+        
+        // Close comment menus when clicking outside
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.comment-menu:not(.hidden)').forEach(menu => {
+                menu.classList.add('hidden');
+            });
+        });
+        
+        // Edit comment buttons
+        document.querySelectorAll('.comment-edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const commentId = btn.dataset.id;
+                const commentItem = document.querySelector(`.comment-item[data-id="${commentId}"]`);
+                
+                // Hide comment content and show edit form
+                commentItem.querySelector('.comment-content').classList.add('hidden');
+                commentItem.querySelector('.comment-edit-form').classList.remove('hidden');
+                
+                // Close the menu
+                commentItem.querySelector('.comment-menu').classList.add('hidden');
+            });
+        });
+        
+        // Cancel edit buttons
+        document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const commentItem = btn.closest('.comment-item');
+                
+                // Show comment content and hide edit form
+                commentItem.querySelector('.comment-content').classList.remove('hidden');
+                commentItem.querySelector('.comment-edit-form').classList.add('hidden');
+            });
+        });
+        
+        // Save comment buttons
+        document.querySelectorAll('.save-comment-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const commentId = btn.dataset.id;
+                const commentItem = document.querySelector(`.comment-item[data-id="${commentId}"]`);
+                const content = commentItem.querySelector('.edit-comment-content').value.trim();
+                
+                if (!content) {
+                    showToast('Comment cannot be empty', 'error');
+                    return;
+                }
+                
+                try {
+                    // Update the comment
+                    await resourceService.updateComment(resourceId, commentId, { content });
+                    
+                    // Reload the resource detail view with comments tab active
+                    loadResourceDetail(resourceId, 'comments');
+                } catch (error) {
+                    console.error('Error updating comment:', error);
+                    showToast('Failed to update comment', 'error');
+                }
+            });
+        });
+        
+        // Delete comment buttons
+        document.querySelectorAll('.comment-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                
+                const commentId = btn.dataset.id;
+                
+                if (confirm('Are you sure you want to delete this comment?')) {
+                    try {
+                        // Delete the comment
+                        await resourceService.deleteComment(resourceId, commentId);
+                        
+                        // Reload the resource detail view with comments tab active
+                        loadResourceDetail(resourceId, 'comments');
+                    } catch (error) {
+                        console.error('Error deleting comment:', error);
+                        showToast('Failed to delete comment', 'error');
+                    }
+                }
+            });
+        });
+        
+    } catch (error) {
+        console.error('Error loading resource detail:', error);
+        content.innerHTML = `
+            <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
+                <p class="font-medium">Error loading resource</p>
+                <p>${error.message || 'Failed to load resource details'}</p>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadResources()">
+                    Back to Resources
+                </button>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Format file size for display
+ * @param {number} bytes - Size in bytes
+ * @returns {string} Formatted size
+ */
+function formatFileSize(bytes) {
+    if (!bytes || isNaN(bytes)) return 'Unknown size';
+    
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+    
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+    }
+    
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+}
 
 
 
