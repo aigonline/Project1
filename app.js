@@ -27,12 +27,6 @@ app.set("trust proxy", "loopback, linklocal, uniquelocal");
 
 // ✅ Improved CORS configuration
 app.use(cors({ origin: "*", credentials: true }));
-app.use(cors({
-    origin: 'https://project1-1bz0.onrender.com/api/v1',  // Replace with your frontend's URL
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    credentials: true  // If you're using cookies or authorization headers
-  }));
 
 // ✅ Security headers
 app.use(helmet());
