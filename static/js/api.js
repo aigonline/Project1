@@ -84,11 +84,11 @@ const authService = {
             throw new Error(errorData.message || 'Login failed');
         }
 
-        const data = await res.json();
+       /* const data = await res.json();
         token = data.token;
         currentUser = data.data.user;
         localStorage.setItem('token', token);
-        return data;
+        return data; */
     },
 
     signup: async (userData) => {
