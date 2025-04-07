@@ -47,12 +47,22 @@ function fetchWithoutAuth(endpoint, options = {}) {
             'Content-Type': 'application/json',
             ...(options.headers || {}),
         },
-    }).then(async (res) => {
+    })
+    .then(async (res) => {
+        // If the response is not OK, throw an error with the message
         if (!res.ok) {
             const err = await res.json();
+            console.error('Error in fetchWithoutAuth:', err); // Logging error response
             throw new Error(err.message || 'Request failed');
         }
-        return res.json();
+
+        // If everything is fine, return the parsed response
+        const data = await res.json();
+        return data;
+    })
+    .catch((error) => {
+        console.error('Fetch without auth error:', error);
+        throw error;
     });
 }
 
