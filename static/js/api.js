@@ -40,42 +40,80 @@ const fetchWithAuth = async (endpoint, options = {}) => {
     return data;
 };
 
+function fetchWithoutAuth(endpoint, options = {}) {
+    return fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options.headers || {}),
+        },
+    }).then(async (res) => {
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || 'Request failed');
+        }
+        return res.json();
+    });
+}
+
+
 // Auth services
 const authService = {
     login: async (email, password) => {
-        const data = await fetchWithAuth('/auth/login', {
+        const res = await fetchWithoutAuth('/auth/login', {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ email, password }),
         });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Login failed');
+        }
+
+        const data = await res.json();
         token = data.token;
         currentUser = data.data.user;
         localStorage.setItem('token', token);
         return data;
     },
-    
+
     signup: async (userData) => {
-        const data = await fetchWithAuth('/auth/signup', {
+        const res = await fetchWithoutAuth('/auth/signup', {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(userData),
         });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Signup failed');
+        }
+
+        const data = await res.json();
         token = data.token;
         currentUser = data.data.user;
         localStorage.setItem('token', token);
         return data;
     },
-    
+
     logout: () => {
         token = null;
         currentUser = null;
         localStorage.removeItem('token');
     },
-    
+
     getCurrentUser: async () => {
         const data = await fetchWithAuth('/auth/me');
         currentUser = data.data.user;
         return data;
     }
 };
+
 
 // Courses service
 const courseService = {
