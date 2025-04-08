@@ -42,70 +42,55 @@ const fetchWithAuth = async (endpoint, options = {}) => {
 
 const fetchWithoutAuth = async (endpoint, options = {}) => {
     if (!options.headers) options.headers = {};
-    
+   
+    // Set content type if not specified and not form data
     if (!options.noContentType && !options.formData) {
         options.headers['Content-Type'] = 'application/json';
     }
-    
+   
     const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-    
+   
     // If no content (204), return an empty object
     if (response.status === 204) return {};
-
-    // Handle 401 Unauthorized
-    if (response.status === 401) {
-        // Clear token and redirect to login
-        authService.logout();
-        loadLoginPage();
-        throw new Error('Session expired. Please log in again.');
+    
+    // Try to parse as JSON
+    try {
+        const data = await response.json();
+        
+        // Handle non-2xx responses
+        if (!response.ok) {
+            throw new Error(data.message || 'Something went wrong');
+        }
+        
+        return data;
+    } catch (jsonError) {
+        // If JSON parsing fails
+        if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+        }
+        // For successful non-JSON responses, return text
+        return { success: true, message: await response.text() };
     }
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-        throw new Error(data.message || 'Something went wrong');
-    }
-    
-    return data;
 };
+
 // Auth services
 const authService = {
     login: async (email, password) => {
-        const res = await fetchWithoutAuth('/auth/login', {
+        const data = await fetchWithoutAuth('/auth/login', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify({ email, password }),
         });
-
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.message || 'Login failed');
-        }
-
-       /* const data = await res.json();
         token = data.token;
         currentUser = data.data.user;
         localStorage.setItem('token', token);
-        return data; */
+        return data;
     },
-
+    
     signup: async (userData) => {
-        const res = await fetchWithoutAuth('/auth/signup', {
+        const data = await fetchWithAuth('/auth/signup', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
             body: JSON.stringify(userData),
         });
-
-        if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.message || 'Signup failed');
-        }
-
-        const data = await res.json();
         token = data.token;
         currentUser = data.data.user;
         localStorage.setItem('token', token);

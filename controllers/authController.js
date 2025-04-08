@@ -114,3 +114,4 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   // Re-authenticate the user and send a new token
   createSendToken(user, 200, res);
 });
+
