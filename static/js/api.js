@@ -87,7 +87,7 @@ const authService = {
     },
     
     signup: async (userData) => {
-        const data = await fetchWithAuth('/auth/signup', {
+        const data = await fetchWithoutAuth('/auth/signup', {
             method: 'POST',
             body: JSON.stringify(userData),
         });
@@ -401,22 +401,73 @@ const userService = {
     getCurrentUser: async () => {
         return await fetchWithAuth('/auth/me'); // ✅ Fetch user profile
     },
-
-    updateProfile: async (userData) => {
+    
+    // Get user activity data
+    getUserActivity: async () => {
+        return await fetchWithAuth('/users/me/activity');
+    },
+    
+    // Get detailed activity history
+    getActivityHistory: async () => {
+        return await fetchWithAuth('/users/me/activity/history');
+    },
+    
+    // Get student performance analytics
+    getStudentPerformance: async () => {
+        return await fetchWithAuth('/users/me/performance');
+    },
+    
+    // Get instructor statistics
+    getInstructorStats: async () => {
+        return await fetchWithAuth('/users/me/teaching');
+    },
+    
+    // Update user profile
+    updateProfile: async (data) => {
         return await fetchWithAuth('/users/updateMe', {
             method: 'PATCH',
-            body: JSON.stringify(userData)
+            body: JSON.stringify(data)
         });
     },
-
-    getUserById: async (userId) => {
-        return await fetchWithAuth(`/users/${userId}`);
-    },
-
-    updatePassword: async (passwordData) => {
-        return await fetchWithAuth('/auth/updatePassword', {
+    
+    // Update user password
+    updatePassword: async (data) => {
+        return await fetchWithAuth('/users/updateMyPassword', {
             method: 'PATCH',
-            body: JSON.stringify(passwordData)
+            body: JSON.stringify(data)
+        });
+    },
+    
+    // Update user avatar
+    updateAvatar: async (formData) => {
+        return await fetchWithAuth('/users/updateAvatar', {
+            method: 'PATCH',
+            body: formData,
+            formData: true, // Use FormData for file uploads
+            // Don't set Content-Type header for FormData
+        });
+    },
+    
+    // Update email notification settings
+    updateEmailSettings: async (data) => {
+        return await fetchWithAuth('/users/updateEmailSettings', {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    // Update language preferences
+    updateLanguageSettings: async (data) => {
+        return await fetchWithAuth('/users/updateLanguage', {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+    
+    // Delete account
+    deleteAccount: async () => {
+        return await fetchWithAuth('/users/deleteMe', {
+            method: 'DELETE'
         });
     }
 };

@@ -2323,7 +2323,8 @@ function displayStudentManagementModal(course, students) {
                     row.remove();
                     
                     // Update count
-                    const countEl = modalContainer.querySelector('.text-gray-700.dark:text-gray-300 .font-medium');
+                    const countEl = modalContainer.querySelector('.text-gray-700 .font-medium') || 
+                    modalContainer.querySelector('.dark\\:text-gray-300 .font-medium');
                     countEl.textContent = parseInt(countEl.textContent) - 1;
                     
                     showToast(`${studentName} has been removed from the course.`);
@@ -5904,200 +5905,434 @@ function showSubmissionDetailModal(submission, assignment) {
     }
 }
 // Profile view
+/**
+ * Load user profile with activity data and performance analytics
+ * @returns {Promise<void>}
+ */
 async function loadProfile() {
     try {
-        // Refresh user data to get the latest information
-        const userData = await authService.getCurrentUser();
-        const user = userData.data.user;
+        // Show loading state
+        content.innerHTML = `
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
         
-        // Get enrolled courses data
-        let enrolledCourses = [];
-        if (user.enrolledCourses && user.enrolledCourses.length > 0) {
+        // Fetch user profile data
+        const userResponse = await userService.getCurrentUser();
+        const userData = userResponse.data.user;
+        
+        // Fetch additional user activity data
+        const activityResponse = await userService.getUserActivity();
+        const activityData = activityResponse.data;
+        
+        // Fetch user's courses
+        const coursesResponse = await courseService.getMyCourses();
+        const userCourses = coursesResponse.data.courses;
+        
+        // Prepare data for different user roles
+        let roleSpecificData = {};
+        
+        // For students: fetch grades and assignment stats
+        if (userData.role === 'student') {
             try {
-                const coursesResponse = await courseService.getMyCourses();
-                enrolledCourses = coursesResponse.data.courses;
+                // Get student performance data
+                const performanceResponse = await userService.getStudentPerformance();
+                roleSpecificData = performanceResponse.data;
             } catch (error) {
-                console.error('Failed to load courses:', error);
+                console.warn('Could not fetch student performance data:', error);
+                roleSpecificData = {
+                    averageGrade: null,
+                    completedAssignments: 0,
+                    totalAssignments: 0,
+                    onTimeSubmissions: 0,
+                    lateSubmissions: 0,
+                    missedAssignments: 0,
+                    courseProgress: []
+                };
+            }
+        } 
+        // For instructors: fetch teaching stats
+        else if (userData.role === 'instructor') {
+            try {
+                // Get instructor teaching data
+                const teachingResponse = await userService.getInstructorStats();
+                roleSpecificData = teachingResponse.data;
+            } catch (error) {
+                console.warn('Could not fetch instructor stats:', error);
+                roleSpecificData = {
+                    totalStudents: 0,
+                    totalCourses: userCourses.length,
+                    totalResources: 0,
+                    totalAssignments: 0,
+                    averageGrade: null,
+                    studentEngagement: [],
+                    recentActivity: []
+                };
             }
         }
         
-        // Count assignments, resources, etc.
-        let assignmentCount = 0;
-        let resourceCount = 0;
-        let discussionCount = 0;
+        // Format account creation date
+        const accountCreated = new Date(userData.createdAt);
+        const accountAge = Math.floor((new Date() - accountCreated) / (1000 * 60 * 60 * 24)); // days
         
-        // Try to load assignments
-        try {
-            const assignmentsResponse = await assignmentService.getAllAssignments();
-            assignmentCount = assignmentsResponse.data.assignments.length;
-        } catch (error) {
-            console.warn('Could not load assignment count:', error);
-        }
+        // Calculate basic stats
+        const enrolledCourses = userData.role === 'student' ? userCourses.length : 0;
+        const teachingCourses = userData.role === 'instructor' ? userCourses.length : 0;
         
-        // Try to load resources
-        try {
-            const resourcesResponse = await resourceService.getAllResources();
-            resourceCount = resourcesResponse.data.resources.length;
-        } catch (error) {
-            console.warn('Could not load resource count:', error);
-        }
+        // Format activity data
+        const lastLogin = activityData.lastLogin ? formatDate(activityData.lastLogin) : 'Never';
+        const totalLogins = activityData.loginCount || 0;
         
-        // Try to load discussions
-        try {
-            const discussionsResponse = await discussionService.getAllDiscussions();
-            discussionCount = discussionsResponse.data.discussions.filter(d => d.author._id === user._id).length;
-        } catch (error) {
-            console.warn('Could not load discussion count:', error);
-        }
+        // Recent activity list
+        const recentActivity = activityData.recentActivity || [];
         
+        // Build the profile view
         content.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden mb-6">
-                <div class="h-40 bg-gradient-to-r from-primary to-purple-500"></div>
-                <div class="p-5 relative">
-                    <div class="absolute -top-16 left-5">
-                        <img src="${getProfileImageUrl(user)}" alt="Profile" class="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800">
-                    </div>
-                    <div class="mt-16 flex flex-wrap justify-between items-center">
-                        <div>
-                            <h2 class="text-2xl font-bold">${user.firstName} ${user.lastName}</h2>
-                            <p class="text-gray-600 dark:text-gray-400">${capitalizeFirstLetter(user.role)}${user.major ? ` • ${user.major}` : ''}</p>
-                        </div>
-                        <button id="editProfileBtn" class="mt-2 md:mt-0 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                            <i class="fas fa-edit mr-2"></i>Edit Profile
-                        </button>
-                    </div>
-                </div>
+            <div class="mb-6 flex flex-wrap justify-between items-center">
+                <h1 class="text-2xl font-bold">My Profile</h1>
+                <button id="editProfileBtn" class="mt-2 sm:mt-0 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                    <i class="fas fa-edit mr-1"></i> Edit Profile
+                </button>
             </div>
             
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
-                        <h3 class="text-lg font-semibold mb-4">About Me</h3>
-                        ${user.bio ? `
-                            <p class="text-gray-700 dark:text-gray-300">${user.bio}</p>
-                        ` : `
-                            <p class="text-gray-500 dark:text-gray-400">No bio information added yet.</p>
-                        `}
+                <!-- Left column: User info and quick stats -->
+                <div>
+                    <!-- User info card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <div class="flex flex-col items-center text-center mb-4">
+                            <div class="relative">
+                                <img src="${getProfileImageUrl(userData)}" alt="${userData.firstName}" class="w-24 h-24 rounded-full mb-3">
+                                <button id="changeAvatarBtn" class="absolute bottom-0 right-0 bg-primary hover:bg-primaryDark text-white rounded-full w-8 h-8 flex items-center justify-center">
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                            </div>
+                            <h2 class="text-xl font-bold">${userData.firstName} ${userData.lastName}</h2>
+                            <p class="text-gray-600 dark:text-gray-400">${userData.email}</p>
+                            <div class="mt-2 px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                ${formatRoleLabel(userData.role)}
+                            </div>
+                        </div>
                         
-                        <div class="mt-5">
-                            <h4 class="font-medium mb-2">Contact Information</h4>
-                            <div class="flex flex-col space-y-2 text-gray-600 dark:text-gray-400">
-                                <div class="flex items-center">
-                                    <i class="fas fa-envelope w-5"></i>
-                                    <span class="ml-2">${user.email}</span>
+                        <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600 dark:text-gray-400">Member Since</span>
+                                    <span>${formatDate(userData.createdAt)} (${accountAge} days)</span>
                                 </div>
-                                ${user.phone ? `
-                                    <div class="flex items-center">
-                                        <i class="fas fa-phone w-5"></i>
-                                        <span class="ml-2">${user.phone}</span>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600 dark:text-gray-400">Last Login</span>
+                                    <span>${lastLogin}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600 dark:text-gray-400">Total Logins</span>
+                                    <span>${totalLogins}</span>
+                                </div>
+                                ${userData.role === 'student' ? `
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600 dark:text-gray-400">Enrolled Courses</span>
+                                        <span>${enrolledCourses}</span>
                                     </div>
-                                ` : ''}
-                                ${user.location ? `
-                                    <div class="flex items-center">
-                                        <i class="fas fa-map-marker-alt w-5"></i>
-                                        <span class="ml-2">${user.location}</span>
+                                ` : userData.role === 'instructor' ? `
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600 dark:text-gray-400">Teaching Courses</span>
+                                        <span>${teachingCourses}</span>
                                     </div>
                                 ` : ''}
                             </div>
                         </div>
                     </div>
                     
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-                        <h3 class="text-lg font-semibold mb-4">My Activity</h3>
-                        
-                        <div class="flex border-b border-gray-200 dark:border-gray-700 mb-4">
-                            <button class="px-4 py-2 border-b-2 border-primary text-primary dark:text-primaryLight">Recent</button>
-                            <button class="px-4 py-2 border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">Submissions</button>
-                            <button class="px-4 py-2 border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">Discussions</button>
-                        </div>
-                        
-                        <div class="space-y-4">
-                            <div class="flex items-start">
-                                <div class="min-w-10 mr-3">
-                                    <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-500">
-                                        <i class="fas fa-book-reader"></i>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p class="font-medium">Joined <span class="text-primary dark:text-primaryLight">${enrolledCourses.length > 0 ? enrolledCourses[0].name : 'a course'}</span></p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">${formatTimeAgo(user.createdAt)}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-start">
-                                <div class="min-w-10 mr-3">
-                                    <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-500">
-                                        <i class="fas fa-user-check"></i>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p class="font-medium">Completed profile setup</p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">${formatTimeAgo(user.updatedAt)}</p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-start">
-                                <div class="min-w-10 mr-3">
-                                    <div class="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500">
-                                        <i class="fas fa-graduation-cap"></i>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p class="font-medium">Joined the platform</p>
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">${formatDate(user.createdAt)}</p>
-                                </div>
-                            </div>
+                    <!-- Quick links card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <h3 class="font-semibold text-lg mb-4">Quick Links</h3>
+                        <div class="space-y-2">
+                            <a href="#" onclick="event.preventDefault(); loadView('courses');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                <i class="fas fa-book mr-3 text-primary dark:text-primaryLight"></i>
+                                <span>My Courses</span>
+                            </a>
+                            <a href="#" onclick="event.preventDefault(); loadView('assignments');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                <i class="fas fa-tasks mr-3 text-primary dark:text-primaryLight"></i>
+                                <span>Assignments</span>
+                            </a>
+                            <a href="#" onclick="event.preventDefault(); loadView('discussions');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                <i class="fas fa-comments mr-3 text-primary dark:text-primaryLight"></i>
+                                <span>Discussions</span>
+                            </a>
+                            <a href="#" onclick="event.preventDefault(); loadView('resources');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                <i class="fas fa-file-alt mr-3 text-primary dark:text-primaryLight"></i>
+                                <span>Resources</span>
+                            </a>
+                            <a href="#" onclick="event.preventDefault(); showAccountSettingsModal();" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                                <i class="fas fa-cog mr-3 text-primary dark:text-primaryLight"></i>
+                                <span>Account Settings</span>
+                            </a>
                         </div>
                     </div>
+                    
+                    <!-- Skill badges (students only) -->
+                    ${userData.role === 'student' ? `
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                            <h3 class="font-semibold text-lg mb-4">Skill Badges</h3>
+                            <div class="flex flex-wrap gap-2">
+                                ${getStudentBadges(roleSpecificData).map(badge => `
+                                    <div class="flex flex-col items-center bg-gray-50 dark:bg-gray-750 rounded-lg p-3" title="${badge.description}">
+                                        <div class="w-12 h-12 flex items-center justify-center mb-2 ${badge.colorClass} rounded-full">
+                                            <i class="${badge.icon} text-xl"></i>
+                                        </div>
+                                        <span class="text-xs font-medium">${badge.name}</span>
+                                    </div>
+                                `).join('')}
+                                ${getStudentBadges(roleSpecificData).length === 0 ? `
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm">Complete assignments and courses to earn skill badges!</p>
+                                ` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
                 
-                <div>
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
-                        <h3 class="text-lg font-semibold mb-4">My Courses</h3>
-                        <div class="space-y-3">
-                            ${enrolledCourses.length > 0 ? enrolledCourses.map(course => `
-                                <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-750 rounded-lg cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
-                                    <div class="w-2 h-10 ${course.color || 'bg-blue-500'} rounded-full mr-3"></div>
-                                    <div>
-                                        <p class="font-medium">${course.name}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">${course.code} • ${course.instructor.firstName} ${course.instructor.lastName}</p>
-                                    </div>
+                <!-- Center column: Analytics and performance -->
+                <div class="lg:col-span-2">
+                    <!-- Analytics summary card -->
+                    ${userData.role === 'student' ? `
+                        <!-- Student analytics -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                            <h3 class="font-semibold text-lg mb-4">Performance Overview</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <!-- Average Grade -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Average Grade</p>
+                                    <p class="text-2xl font-bold ${getGradeColorClass(roleSpecificData.averageGrade || 0, 100)}">
+                                        ${roleSpecificData.averageGrade !== null ? roleSpecificData.averageGrade.toFixed(1) + '%' : 'N/A'}
+                                    </p>
                                 </div>
-                            `).join('') : `
-                                <p class="text-gray-500 dark:text-gray-400">You haven't enrolled in any courses yet.</p>
-                            `}
+                                
+                                <!-- Assignment Completion -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Assignments Completed</p>
+                                    <p class="text-2xl font-bold">
+                                        ${roleSpecificData.completedAssignments || 0}/${roleSpecificData.totalAssignments || 0}
+                                    </p>
+                                </div>
+                                
+                                <!-- On-time Submission Rate -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">On-time Submission</p>
+                                    <p class="text-2xl font-bold ${getOnTimeRateColor(roleSpecificData)}">
+                                        ${calculateOnTimeRate(roleSpecificData)}%
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Submission breakdown -->
+                            <div class="mb-6">
+                                <h4 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Submission Stats</h4>
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+                                    ${generateSubmissionStatsBar(roleSpecificData)}
+                                </div>
+                                <div class="flex justify-between text-xs mt-1">
+                                    <span class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span> On-time (${roleSpecificData.onTimeSubmissions || 0})</span>
+                                    <span class="flex items-center"><span class="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span> Late (${roleSpecificData.lateSubmissions || 0})</span>
+                                    <span class="flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-1"></span> Missed (${roleSpecificData.missedAssignments || 0})</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Course progress -->
+                            <div>
+                                <h4 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Course Progress</h4>
+                                ${roleSpecificData.courseProgress && roleSpecificData.courseProgress.length > 0 ? `
+                                    <div class="space-y-3">
+                                        ${roleSpecificData.courseProgress.map(course => `
+                                            <div>
+                                                <div class="flex justify-between mb-1">
+                                                    <span class="text-sm">${course.name}</span>
+                                                    <span class="text-sm font-medium">${course.progress}%</span>
+                                                </div>
+                                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                                                    <div class="bg-primary dark:bg-primaryLight h-2.5 rounded-full" style="width: ${course.progress}%"></div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm">No course progress data available.</p>
+                                `}
+                            </div>
                         </div>
+                    ` : userData.role === 'instructor' ? `
+                        <!-- Instructor analytics -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                            <h3 class="font-semibold text-lg mb-4">Teaching Overview</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                <!-- Total Students -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Total Students</p>
+                                    <p class="text-2xl font-bold">${roleSpecificData.totalStudents || 0}</p>
+                                </div>
+                                
+                                <!-- Total Courses -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Courses</p>
+                                    <p class="text-2xl font-bold">${roleSpecificData.totalCourses || 0}</p>
+                                </div>
+                                
+                                <!-- Total Resources -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Resources</p>
+                                    <p class="text-2xl font-bold">${roleSpecificData.totalResources || 0}</p>
+                                </div>
+                                
+                                <!-- Total Assignments -->
+                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Assignments</p>
+                                    <p class="text-2xl font-bold">${roleSpecificData.totalAssignments || 0}</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Student performance -->
+                            <div class="mb-6">
+                                <h4 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Average Student Performance</h4>
+                                <div class="flex items-center">
+                                    <div class="flex-1">
+                                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                                            <div class="bg-primary dark:bg-primaryLight h-2.5 rounded-full" style="width: ${roleSpecificData.averageGrade || 0}%"></div>
+                                        </div>
+                                    </div>
+                                    <span class="ml-3 font-medium">${roleSpecificData.averageGrade ? roleSpecificData.averageGrade.toFixed(1) + '%' : 'N/A'}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Student engagement -->
+                            <div>
+                                <h4 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Student Engagement by Course</h4>
+                                ${roleSpecificData.studentEngagement && roleSpecificData.studentEngagement.length > 0 ? `
+                                    <div class="space-y-3">
+                                        ${roleSpecificData.studentEngagement.map(course => `
+                                            <div>
+                                                <div class="flex justify-between mb-1">
+                                                    <span class="text-sm">${course.name}</span>
+                                                    <span class="text-sm font-medium">${course.engagement}%</span>
+                                                </div>
+                                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                                                    <div class="bg-primary dark:bg-primaryLight h-2.5 rounded-full" style="width: ${course.engagement}%"></div>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                ` : `
+                                    <p class="text-gray-500 dark:text-gray-400 text-sm">No engagement data available.</p>
+                                `}
+                            </div>
+                        </div>
+                    ` : `
+                        <!-- Admin statistics -->
+                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                            <h3 class="font-semibold text-lg mb-4">Platform Overview</h3>
+                            <p class="text-gray-500 dark:text-gray-400">Admin analytics will be displayed here.</p>
+                        </div>
+                    `}
+                    
+                    <!-- Recent activity card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-semibold text-lg">Recent Activity</h3>
+                            <a href="#" id="viewAllActivityBtn" class="text-primary dark:text-primaryLight hover:underline text-sm">View All</a>
+                        </div>
+                        
+                        ${recentActivity.length > 0 ? `
+                            <div class="space-y-4">
+                                ${recentActivity.map(activity => {
+                                    const icon = getActivityIcon(activity.type);
+                                    return `
+                                        <div class="flex">
+                                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary bg-opacity-10 dark:bg-opacity-20 flex items-center justify-center mr-3">
+                                                <i class="${icon} text-primary dark:text-primaryLight"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-gray-700 dark:text-gray-300">${activity.description}</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(activity.timestamp)}</p>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            <p class="text-gray-500 dark:text-gray-400">No recent activity to display.</p>
+                        `}
                     </div>
                     
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-                        <h3 class="text-lg font-semibold mb-4">Stats</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
-                                <div class="text-2xl font-bold text-primary dark:text-primaryLight">${enrolledCourses.length}</div>
-                                <div class="text-sm text-gray-500 dark:text-gray-400">Courses</div>
-                            </div>
-                            <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
-                                <div class="text-2xl font-bold text-primary dark:text-primaryLight">${assignmentCount}</div>
-                                <div class="text-sm text-gray-500 dark:text-gray-400">Assignments</div>
-                            </div>
-                            <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
-                                <div class="text-2xl font-bold text-primary dark:text-primaryLight">${discussionCount}</div>
-                                <div class="text-sm text-gray-500 dark:text-gray-400">Discussions</div>
-                            </div>
-                            <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
-                                <div class="text-2xl font-bold text-primary dark:text-primaryLight">${resourceCount}</div>
-                                <div class="text-sm text-gray-500 dark:text-gray-400">Resources</div>
-                            </div>
+                    <!-- Courses card -->
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-semibold text-lg">${userData.role === 'student' ? 'My Courses' : userData.role === 'instructor' ? 'Courses I Teach' : 'All Courses'}</h3>
+                            <a href="#" onclick="event.preventDefault(); loadView('courses');" class="text-primary dark:text-primaryLight hover:underline text-sm">View All</a>
                         </div>
+                        
+                        ${userCourses.length > 0 ? `
+                            <div class="space-y-3">
+                                ${userCourses.slice(0, 5).map(course => `
+                                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-750 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
+                                        <div class="w-12 h-12 rounded flex-shrink-0" style="background-color: ${course.color || '#5D5CDE'}"></div>
+                                        <div class="ml-3 flex-1 min-w-0">
+                                            <p class="font-medium truncate">${course.name}</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400 truncate">${course.code}</p>
+                                        </div>
+                                        <i class="fas fa-chevron-right text-gray-400"></i>
+                                    </div>
+                                `).join('')}
+                                
+                                ${userCourses.length > 5 ? `
+                                    <div class="text-center mt-2">
+                                        <span class="text-gray-500 dark:text-gray-400 text-sm">Showing 5 of ${userCourses.length} courses</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        ` : `
+                            <div class="text-center py-6">
+                                <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fas fa-graduation-cap text-gray-500 text-2xl"></i>
+                                </div>
+                                <p class="text-gray-700 dark:text-gray-300 mb-2">No courses yet</p>
+                                <p class="text-gray-500 dark:text-gray-400 mb-4">
+                                    ${userData.role === 'student' ? 'Enroll in courses to get started with your learning journey.' : 
+                                      userData.role === 'instructor' ? 'Create your first course to begin teaching.' : 
+                                      'No courses have been created yet.'}
+                                </p>
+                                <button class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition" onclick="loadView('courses')">
+                                    ${userData.role === 'student' ? 'Browse Courses' : 
+                                      userData.role === 'instructor' ? 'Create Course' : 
+                                      'Manage Courses'}
+                                </button>
+                            </div>
+                        `}
                     </div>
                 </div>
             </div>
         `;
         
         // Set up event listeners
+        
+        // Edit profile button
         document.getElementById('editProfileBtn').addEventListener('click', () => {
-            loadView('settings');
+            showEditProfileModal(userData);
         });
+        
+        // Change avatar button
+        document.getElementById('changeAvatarBtn').addEventListener('click', () => {
+            showChangeAvatarModal();
+        });
+        
+        // View all activity button
+        const viewAllActivityBtn = document.getElementById('viewAllActivityBtn');
+        if (viewAllActivityBtn) {
+            viewAllActivityBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showActivityHistoryModal();
+            });
+        }
         
     } catch (error) {
         console.error('Error loading profile:', error);
@@ -6111,6 +6346,621 @@ async function loadProfile() {
     }
 }
 
+/**
+ * Format user role for display
+ * @param {string} role - User role
+ * @returns {string} Formatted role label
+ */
+function formatRoleLabel(role) {
+    switch (role) {
+        case 'admin':
+            return 'Administrator';
+        case 'instructor':
+            return 'Instructor';
+        case 'student':
+            return 'Student';
+        default:
+            return role.charAt(0).toUpperCase() + role.slice(1);
+    }
+}
+
+/**
+ * Get appropriate icon for activity type
+ * @param {string} activityType - Type of activity
+ * @returns {string} FontAwesome icon class
+ */
+function getActivityIcon(activityType) {
+    switch (activityType) {
+        case 'login':
+            return 'fas fa-sign-in-alt';
+        case 'enrollment':
+            return 'fas fa-user-plus';
+        case 'submission':
+            return 'fas fa-paper-plane';
+        case 'comment':
+            return 'fas fa-comment';
+        case 'resource':
+            return 'fas fa-file-alt';
+        case 'grade':
+            return 'fas fa-check-circle';
+        case 'discussion':
+            return 'fas fa-comments';
+        case 'course_creation':
+            return 'fas fa-plus-circle';
+        default:
+            return 'fas fa-clock';
+    }
+}
+
+/**
+ * Calculate on-time submission rate
+ * @param {Object} data - Performance data
+ * @returns {number} On-time submission rate percentage
+ */
+function calculateOnTimeRate(data) {
+    const onTime = data.onTimeSubmissions || 0;
+    const total = (data.onTimeSubmissions || 0) + (data.lateSubmissions || 0) + (data.missedAssignments || 0);
+    
+    if (total === 0) return 0;
+    
+    return Math.round((onTime / total) * 100);
+}
+
+/**
+ * Get color class for on-time submission rate
+ * @param {Object} data - Performance data
+ * @returns {string} CSS color class
+ */
+function getOnTimeRateColor(data) {
+    const rate = calculateOnTimeRate(data);
+    
+    if (rate >= 90) return 'text-green-500';
+    if (rate >= 75) return 'text-blue-500';
+    if (rate >= 60) return 'text-yellow-500';
+    if (rate >= 40) return 'text-orange-500';
+    return 'text-red-500';
+}
+
+/**
+ * Generate HTML for submission stats progress bar
+ * @param {Object} data - Performance data
+ * @returns {string} HTML for progress bar
+ */
+function generateSubmissionStatsBar(data) {
+    const onTime = data.onTimeSubmissions || 0;
+    const late = data.lateSubmissions || 0;
+    const missed = data.missedAssignments || 0;
+    const total = onTime + late + missed;
+    
+    if (total === 0) {
+        return '<div class="bg-gray-400 dark:bg-gray-600 h-4 rounded-full w-full"></div>';
+    }
+    
+    const onTimePercent = (onTime / total) * 100;
+    const latePercent = (late / total) * 100;
+    const missedPercent = (missed / total) * 100;
+    
+    return `
+        <div class="flex h-4 rounded-full overflow-hidden">
+            <div class="bg-green-500 h-4" style="width: ${onTimePercent}%"></div>
+            <div class="bg-yellow-500 h-4" style="width: ${latePercent}%"></div>
+            <div class="bg-red-500 h-4" style="width: ${missedPercent}%"></div>
+        </div>
+    `;
+}
+
+/**
+ * Get badges earned by the student
+ * @param {Object} data - Student performance data
+ * @returns {Array} Array of badge objects
+ */
+function getStudentBadges(data) {
+    const badges = [];
+    
+    // Total assignments completed badge
+    if ((data.completedAssignments || 0) >= 10) {
+        badges.push({
+            name: 'Assignment Master',
+            description: 'Completed 10+ assignments',
+            icon: 'fas fa-tasks',
+            colorClass: 'bg-blue-100 text-blue-500 dark:bg-blue-900/30 dark:text-blue-300'
+        });
+    } else if ((data.completedAssignments || 0) >= 5) {
+        badges.push({
+            name: 'Assignment Pro',
+            description: 'Completed 5+ assignments',
+            icon: 'fas fa-tasks',
+            colorClass: 'bg-blue-100 text-blue-500 dark:bg-blue-900/30 dark:text-blue-300'
+        });
+    }
+    
+    // On-time submissions badge
+    const onTimeRate = calculateOnTimeRate(data);
+    if (onTimeRate >= 90) {
+        badges.push({
+            name: 'Punctual Scholar',
+            description: '90%+ on-time submission rate',
+            icon: 'fas fa-clock',
+            colorClass: 'bg-green-100 text-green-500 dark:bg-green-900/30 dark:text-green-300'
+        });
+    }
+    
+    // High grades badge
+    if ((data.averageGrade || 0) >= 90) {
+        badges.push({
+            name: 'Academic Excellence',
+            description: '90%+ average grade',
+            icon: 'fas fa-award',
+            colorClass: 'bg-yellow-100 text-yellow-500 dark:bg-yellow-900/30 dark:text-yellow-300'
+        });
+    } else if ((data.averageGrade || 0) >= 80) {
+        badges.push({
+            name: 'Honor Roll',
+            description: '80%+ average grade',
+            icon: 'fas fa-award',
+            colorClass: 'bg-yellow-100 text-yellow-500 dark:bg-yellow-900/30 dark:text-yellow-300'
+        });
+    }
+    
+    // Course completion badge
+    const completedCourses = (data.courseProgress || []).filter(course => course.progress === 100).length;
+    if (completedCourses >= 3) {
+        badges.push({
+            name: 'Course Champion',
+            description: 'Completed 3+ courses',
+            icon: 'fas fa-graduation-cap',
+            colorClass: 'bg-purple-100 text-purple-500 dark:bg-purple-900/30 dark:text-purple-300'
+        });
+    } else if (completedCourses >= 1) {
+        badges.push({
+            name: 'Course Graduate',
+            description: 'Completed a course',
+            icon: 'fas fa-graduation-cap',
+            colorClass: 'bg-purple-100 text-purple-500 dark:bg-purple-900/30 dark:text-purple-300'
+        });
+    }
+    
+    return badges;
+}
+
+/**
+ * Show modal with user activity history
+ */
+function showActivityHistoryModal() {
+    // Fetch activity history
+    userService.getActivityHistory()
+        .then(response => {
+            const activityHistory = response.data.activities || [];
+            
+            // Create modal HTML
+            const modalHtml = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-semibold">Activity History</h3>
+                            <button id="closeActivityModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        
+                        ${activityHistory.length > 0 ? `
+                            <div class="space-y-4">
+                                ${activityHistory.map(activity => {
+                                    const icon = getActivityIcon(activity.type);
+                                    const date = new Date(activity.timestamp);
+                                    const dateString = date.toLocaleDateString('en-US', { 
+                                        year: 'numeric', 
+                                        month: 'short', 
+                                        day: 'numeric' 
+                                    });
+                                    const timeString = date.toLocaleTimeString('en-US', { 
+                                        hour: '2-digit', 
+                                        minute: '2-digit' 
+                                    });
+                                    
+                                    return `
+                                        <div class="flex items-start p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition">
+                                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary bg-opacity-10 dark:bg-opacity-20 flex items-center justify-center mr-3">
+                                                <i class="${icon} text-primary dark:text-primaryLight"></i>
+                                            </div>
+                                            <div class="flex-1">
+                                                <p class="text-gray-700 dark:text-gray-300">${activity.description}</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">${dateString} at ${timeString}</p>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            <div class="text-center py-8">
+                                <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fas fa-history text-gray-500 text-2xl"></i>
+                                </div>
+                                <p class="text-gray-500 dark:text-gray-400">No activity history to display.</p>
+                            </div>
+                        `}
+                        
+                        <div class="flex justify-end mt-4">
+                            <button id="closeActivityBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to DOM
+            const modalContainer = document.createElement('div');
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
+            
+            // Set up event listeners
+            document.getElementById('closeActivityModal').addEventListener('click', () => {
+                document.body.removeChild(modalContainer);
+            });
+            
+            document.getElementById('closeActivityBtn').addEventListener('click', () => {
+                document.body.removeChild(modalContainer);
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching activity history:', error);
+            showToast('Failed to load activity history', 'error');
+        });
+}
+
+/**
+ * Show modal for editing user profile
+ * @param {Object} userData - Current user data
+ */
+function showEditProfileModal(userData) {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Edit Profile</h3>
+                    <button id="closeEditProfileModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="editProfileForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">First Name</label>
+                            <input type="text" id="firstName" value="${userData.firstName}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-2">Last Name</label>
+                            <input type="text" id="lastName" value="${userData.lastName}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Email Address</label>
+                        <input type="email" id="email" value="${userData.email}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Bio</label>
+                        <textarea id="bio" rows="3" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${userData.bio || ''}</textarea>
+                    </div>
+                    
+                    <div id="editProfileError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelEditProfileBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeEditProfileModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('cancelEditProfileBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Form submission
+    document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const firstName = document.getElementById('firstName').value;
+        const lastName = document.getElementById('lastName').value;
+        const email = document.getElementById('email').value;
+        const bio = document.getElementById('bio').value;
+        const errorDiv = document.getElementById('editProfileError');
+        
+        errorDiv.classList.add('hidden');
+        
+        try {
+            // Update user profile
+            await userService.updateProfile({
+                firstName,
+                lastName,
+                email,
+                bio
+            });
+            
+            // Close modal and show success message
+            document.body.removeChild(modalContainer);
+            showToast('Profile updated successfully!');
+            
+            // Reload profile view to show updated information
+            loadProfile();
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            errorDiv.textContent = error.message || 'Failed to update profile. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
+
+/**
+ * Show modal for changing user avatar
+ */
+function showChangeAvatarModal() {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Change Profile Picture</h3>
+                    <button id="closeAvatarModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="avatarForm" class="space-y-4">
+                    <div class="text-center">
+                        <div class="mx-auto w-32 h-32 mb-3 relative">
+                            <img id="avatarPreview" src="${getProfileImageUrl(currentUser)}" alt="Profile" class="w-full h-full rounded-full object-cover">
+                            <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition">
+                                <span class="text-white">Select Image</span>
+                            </div>
+                        </div>
+                        <input type="file" id="avatarFile" accept="image/*" class="hidden">
+                        <button type="button" id="selectAvatarBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                            Choose File
+                        </button>
+                    </div>
+                    
+                    <p class="text-sm text-gray-500 dark:text-gray-400 text-center">
+                        Select a square image (JPG, PNG) for best results.<br>
+                        Maximum file size: 5MB
+                    </p>
+                    
+                    <div id="avatarError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelAvatarBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" id="saveAvatarBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition" disabled>
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeAvatarModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('cancelAvatarBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // File selection
+    const avatarFile = document.getElementById('avatarFile');
+    const selectBtn = document.getElementById('selectAvatarBtn');
+    const preview = document.getElementById('avatarPreview');
+    const saveBtn = document.getElementById('saveAvatarBtn');
+    
+    selectBtn.addEventListener('click', () => {
+        avatarFile.click();
+    });
+    
+    // Preview selected image
+    avatarFile.addEventListener('change', () => {
+        const file = avatarFile.files[0];
+        const errorDiv = document.getElementById('avatarError');
+        
+        errorDiv.classList.add('hidden');
+        
+        if (file) {
+            // Check file size (5MB max)
+            if (file.size > 5 * 1024 * 1024) {
+                errorDiv.textContent = 'File size exceeds the 5MB limit.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Check file type
+            if (!file.type.match('image.*')) {
+                errorDiv.textContent = 'Please select an image file.';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.src = e.target.result;
+                saveBtn.disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    // Form submission
+    document.getElementById('avatarForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const file = avatarFile.files[0];
+        const errorDiv = document.getElementById('avatarError');
+        
+        if (!file) {
+            errorDiv.textContent = 'Please select an image file.';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        // Show loading state
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
+        
+        try {
+            // Create form data for file upload
+            const formData = new FormData();
+            formData.append('avatar', file);
+            
+            // Upload avatar
+            await userService.updateAvatar(formData);
+            
+            // Close modal and show success message
+            document.body.removeChild(modalContainer);
+            showToast('Profile picture updated successfully!');
+            
+            // Reload profile view to show updated avatar
+            loadProfile();
+        } catch (error) {
+            console.error('Error updating avatar:', error);
+            errorDiv.textContent = error.message || 'Failed to update profile picture. Please try again.';
+            errorDiv.classList.remove('hidden');
+            
+            // Reset button
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = 'Save Changes';
+        }
+    });
+}
+
+/**
+ * Show account settings modal
+ */
+function showAccountSettingsModal() {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Account Settings</h3>
+                    <button id="closeSettingsModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Change Password</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Update your account password</p>
+                        </div>
+                        <button id="changePasswordBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Change
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Email Notifications</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Manage your email preferences</p>
+                        </div>
+                        <button id="emailSettingsBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Settings
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                        <div>
+                            <h4 class="font-medium">Language & Region</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Change your display language</p>
+                        </div>
+                        <button id="languageSettingsBtn" class="px-3 py-1.5 text-primary border border-primary rounded-lg hover:bg-primary hover:text-white dark:border-primaryLight dark:text-primaryLight dark:hover:bg-primaryDark transition">
+                            Settings
+                        </button>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-medium text-red-600 dark:text-red-400">Delete Account</h4>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Permanently delete your account</p>
+                        </div>
+                        <button id="deleteAccountBtn" class="px-3 py-1.5 text-red-600 border border-red-600 rounded-lg hover:bg-red-600 hover:text-white dark:text-red-400 dark:border-red-400 dark:hover:bg-red-700 transition">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button id="closeSettingsBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up close button event listeners
+    document.getElementById('closeSettingsModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Change password button
+    document.getElementById('changePasswordBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showChangePasswordModal();
+    });
+    
+    // Email settings button
+    document.getElementById('emailSettingsBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showEmailSettingsModal();
+    });
+    
+    // Language settings button
+    document.getElementById('languageSettingsBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showLanguageSettingsModal();
+    });
+    
+    // Delete account button
+    document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+        showDeleteAccountModal();
+    });
+}
 
 // Settings view
 async function loadSettings() {

@@ -1,5 +1,8 @@
 const Course = require('../models/course.js');
 const User = require('../models/user.js');
+const Resource = require('../models/resource.js');
+const Assignment = require('../models/assignment.js');
+const Discussion = require('../models/discussion.js');
 const catchAsync = require('../utils/catchAsync.js');
 const AppError = require('../utils/appError.js');
 const APIFeatures = require('../utils/apiFeatures.js');
@@ -125,7 +128,7 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
   
   // Add a student to a course by email
   exports.addStudentToCourse = catchAsync(async (req, res, next) => {
-    const { id } = req.params;
+    const { courseId } = req.params;
     const { email } = req.body;
     
     // Check if email was provided
@@ -134,13 +137,13 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
     }
     
     // Get the course
-    const course = await Course.findById(id);
+    const course = await Course.findById(courseId);
     if (!course) {
       return next(new AppError('No course found with that ID', 404));
     }
     
     // Check if user is authorized (instructor or admin)
-    if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
+    if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
       return next(new AppError('You do not have permission to manage students in this course', 403));
     }
     
@@ -172,16 +175,16 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
   
   // Remove a student from a course
   exports.removeStudentFromCourse = catchAsync(async (req, res, next) => {
-    const { id, studentId } = req.params;
+    const { courseId, studentId } = req.params;
     
     // Get the course
-    const course = await Course.findById(id);
+    const course = await Course.findById(courseId);
     if (!course) {
       return next(new AppError('No course found with that ID', 404));
     }
     
     // Check if user is authorized (instructor or admin)
-    if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
+    if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
       return next(new AppError('You do not have permission to manage students in this course', 403));
     }
     
@@ -213,29 +216,34 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
   
   // Delete a course
   exports.deleteCourse = catchAsync(async (req, res, next) => {
-    const { id } = req.params;
+    const { courseId } = req.params;
     
     // Get the course
-    const course = await Course.findById(id);
+    const course = await Course.findById(courseId);
     if (!course) {
       return next(new AppError('No course found with that ID', 404));
     }
     
     // Check if user is authorized (instructor or admin)
-    if (req.user.role !== 'admin' && course.instructor.toString() !== req.user.id.toString()) {
+    if (req.user.role !== 'instructor' && course.instructor.toString() !== req.user.id.toString()) {
       return next(new AppError('You do not have permission to delete this course', 403));
     }
     
     // Delete the course
-    await Course.findByIdAndDelete(id);
+    await Course.findByIdAndDelete(courseId);
     
     // Remove course from all enrolled students
     await User.updateMany(
-      { enrolledCourses: id },
-      { $pull: { enrolledCourses: id } }
+      { enrolledCourses: courseId },
+      { $pull: { enrolledCourses: courseId } }
     );
     
     // Optional: Delete associated resources, assignments, discussions, etc.
+    await Resource.deleteMany({ course: courseId });
+    await Assignment.deleteMany({ course: courseId });
+    await Discussion.deleteMany({ course: courseId });
+
+
     // Depends on your data model and cascading delete requirements
     
     res.status(204).json({

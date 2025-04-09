@@ -1,7 +1,7 @@
 const express = require('express');
 const resourceController = require('../controllers/resourceController.js');
 const authMiddleware = require('../middleware/auth.js');
-const fileUpload = require('../middleware/upload.js'); // Your file upload middleware
+const upload = require('../middleware/upload.js'); // Your file upload middleware
 
 const router = express.Router({ mergeParams: true });
 
@@ -9,7 +9,7 @@ const router = express.Router({ mergeParams: true });
 router.use(authMiddleware.protect);
 
 // create resource route
-router.post('/:courseId', fileUpload.single('file'), resourceController.createResource);
+router.post('/:courseId', upload.single('file'), resourceController.createResource);
 // Resource routes
 router.route('/')
   .get(resourceController.getAllResources);

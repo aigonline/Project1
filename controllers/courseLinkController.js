@@ -133,6 +133,11 @@ exports.joinCourseViaLink = catchAsync(async (req, res, next) => {
     return next(new AppError('This course is not accepting new enrollments', 400));
   }
   
+  //check if user is an admin or instructor
+  if (req.user.role === 'admin' || req.user.role === 'instructor') {
+    return next(new AppError('You are the Instructor of this course and already a member ', 400));
+  }
+
   // Check if user is already enrolled
   if (course.students.includes(req.user.id)) {
     return next(new AppError('You are already enrolled in this course', 400));

@@ -54,6 +54,11 @@ const userSchema = new mongoose.Schema({
     ref: 'Course'
   }],
   passwordChangedAt: Date,
+  lastLogin: Date,
+  totalLogins: {
+    type: Number,
+    default: 0
+  },
   passwordResetToken: String,
   passwordResetExpires: Date,
   active: {

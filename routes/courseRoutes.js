@@ -29,6 +29,14 @@ router.patch('/:courseId/', courseController.updateCourse);
 router.post('/', protect, restrictTo('instructor'), courseController.createCourse);
 router.get('/:id', protect, courseController.getCourse); // Add this line
 router.post('/enroll', courseController.enrollInCourse);
+
+//add student to course
+router.post('/:courseId/students', protect, restrictTo('instructor'), courseController.addStudentToCourse);
+//remove student from course
+router.delete('/:courseId/students/:studentId', protect, restrictTo('instructor'), courseController.removeStudentFromCourse);
+
+//delete course
+router.delete('/:courseId', protect, restrictTo('instructor'), courseController.deleteCourse);
 // Admin only routes
 router.route('/')
   .get(userController.getAllUsers);
