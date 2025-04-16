@@ -142,3 +142,69 @@
 .dark .prose pre {
     background-color: #374151;
 }
+
+.toggle-bg {
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+.toggle-bg:after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+input:checked + .toggle-bg {
+    background-color: #5D5CDE;
+}
+
+input:checked + .toggle-bg:after {
+    transform: translateX(24px);
+}
+
+/* Text size preview */
+#textSizePreview {
+    transition: font-size 0.2s;
+}
+.dark {
+    --color-primary: #6D6CFF;
+    --color-primary-dark: #5252CC;
+    --color-primary-light: #8F8FFF;
+}
+
+/* Base styles */
+:root {
+    --color-primary: #5D5CDE;
+    --color-primary-dark: #4545B0;
+    --color-primary-light: #7A79E8;
+}
+
+/* Reduce motion styles */
+.reduce-motion * {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* High contrast styles */
+.high-contrast {
+    --color-primary: #0066CC;
+    --color-primary-dark: #004C99;
+    --color-primary-light: #3399FF;
+}
+
+.high-contrast.dark {
+    --color-primary: #00CCFF;
+    --color-primary-dark: #0099CC;
+    --color-primary-light: #66E6FF;
+}
+
+/* Dyslexic font styles */
+.dyslexic-font * {
+    font-family: 'OpenDyslexic', sans-serif !important;
+}

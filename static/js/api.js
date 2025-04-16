@@ -22,7 +22,7 @@ const fetchWithAuth = async (endpoint, options = {}) => {
     
     // If no content (204), return an empty object
     if (response.status === 204) return {};
-
+    
     // Handle 401 Unauthorized
     if (response.status === 401) {
         // Clear token and redirect to login
@@ -30,6 +30,7 @@ const fetchWithAuth = async (endpoint, options = {}) => {
         loadLoginPage();
         throw new Error('Session expired. Please log in again.');
     }
+ 
     
     const data = await response.json();
     
@@ -448,28 +449,54 @@ const userService = {
         });
     },
     
-    // Update email notification settings
-    updateEmailSettings: async (data) => {
-        return await fetchWithAuth('/users/updateEmailSettings', {
-            method: 'PATCH',
-            body: JSON.stringify(data)
-        });
-    },
+   // Update language settings
+   updateLanguage: async (data) => {
+    return await fetchWithAuth('/users/updateLanguage', {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+    });
+},
+
+// Update email notification settings
+updateEmailSettings: async (data) => {
+    return await fetchWithAuth('/users/updateEmailSettings', {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+    });
+},
+
+// Get user sessions
+getUserSessions: async () => {
+    return await fetchWithAuth('/users/sessions');
+},
+
+// Revoke a specific session
+revokeSession: async (sessionId) => {
+    return await fetchWithAuth(`/users/sessions/${sessionId}`, {
+        method: 'DELETE'
+    });
+},
+
+// Revoke all other sessions
+revokeAllOtherSessions: async () => {
+    return await fetchWithAuth('/users/sessions/all', {
+        method: 'DELETE'
+    });
+},
+
+// Delete user account
+deleteAccount: async (data) => {
+    return await fetchWithAuth('/users/deleteMe', {
+        method: 'DELETE',
+        body: JSON.stringify(data)
+    });
+},
+
+// Verify token is still valid
+verifyToken: async (token) => {
+    return await fetchWithAuth('/users/verifyToken');
+},
     
-    // Update language preferences
-    updateLanguageSettings: async (data) => {
-        return await fetchWithAuth('/users/updateLanguage', {
-            method: 'PATCH',
-            body: JSON.stringify(data)
-        });
-    },
-    
-    // Delete account
-    deleteAccount: async () => {
-        return await fetchWithAuth('/users/deleteMe', {
-            method: 'DELETE'
-        });
-    }
 };
 
 const announcementService = {

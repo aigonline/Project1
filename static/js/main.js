@@ -29,6 +29,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+document.addEventListener('DOMContentLoaded', () => {
+    const errorMessage = document.getElementById('error-message');
+    if (errorMessage && errorMessage.textContent.includes("Session expired")) {
+      // Redirect to login page
+      window.location.href = '/login';
+    }
+  });
 // Function to process a course join link
 async function processCourseJoinLink(token) {
     try {
@@ -78,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initializeApp() {
     const joinToken = new URLSearchParams(window.location.search).get('token');
     
+
     if (!await checkAuth()) {
         // Save pending join token if not logged in
         if (joinToken) {
@@ -87,6 +95,20 @@ async function initializeApp() {
         loadLoginPage();
         return;
     }
+                setupEventListeners();
+                
+                // Initialize language support
+                initializeLanguage();
+                
+                // Initialize accessibility settings
+                initializeAccessibilitySettings();
+                
+                // Load appropriate view based on URL params or default to dashboard
+                loadView('dashboard');
+
+                
+    // Initialize theme based on system preference or saved setting
+    initializeTheme();
     
     // User is authenticated; update UI
     updateUserInfo();
@@ -102,7 +124,67 @@ async function initializeApp() {
     }
 }
 
+function initializeTheme() {
+    const followSystem = localStorage.getItem('followSystemTheme') !== 'false';
+    const savedTheme = localStorage.getItem('theme');
+    
+    if (followSystem) {
+        // Use system preference
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        
+        // Listen for changes in system preference
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+    } else if (savedTheme) {
+        // Use saved preference
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }
+}
 
+/**
+ * Initialize accessibility settings
+ */
+function initializeAccessibilitySettings() {
+    // Apply text size
+    const textSize = localStorage.getItem('textSize') || '100';
+    document.documentElement.style.fontSize = `${textSize}%`;
+    
+    // Apply reduce motion setting
+    if (localStorage.getItem('reduceMotion') === 'true') {
+        document.documentElement.classList.add('reduce-motion');
+    }
+    
+    // Apply high contrast setting
+    if (localStorage.getItem('highContrast') === 'true') {
+        document.documentElement.classList.add('high-contrast');
+    }
+    
+    // Apply dyslexic font setting
+    if (localStorage.getItem('dyslexicFont') === 'true') {
+        document.documentElement.classList.add('dyslexic-font');
+        // Load dyslexic font
+        if (!document.getElementById('dyslexicFontStylesheet')) {
+            const link = document.createElement('link');
+            link.id = 'dyslexicFontStylesheet';
+            link.rel = 'stylesheet';
+            link.href = 'https://cdn.jsdelivr.net/npm/opendyslexic@1.0.3/dist/opendyslexic/opendyslexic.css';
+            document.head.appendChild(link);
+        }
+    }
+}
 // Check if user is authenticated
 async function checkAuth() {
     // Check if token exists
@@ -1966,6 +2048,443 @@ async function togglePinResource(id) {
     }
 }
 
+/**
+ * Hausa language translation module
+ * Contains translations for common UI elements
+ */
+const hausaTranslations = {
+    // Navigation
+    'Dashboard': 'Dashbod',
+    'Courses': 'Darussan',
+    'Assignments': 'Ayyukan',
+    'Discussions': 'Tattaunawa',
+    'Resources': 'Kayayyakin',
+    'Profile': 'Bayani',
+    'Settings': 'Saituna',
+    'Logout': 'Fita',
+    
+    // General UI
+    'Save': 'Ajiye',
+    'Cancel': 'Soke',
+    'Delete': 'Share',
+    'Edit': 'Gyara',
+    'View': 'Duba',
+    'Search': 'Bincika',
+    'Loading': 'Ana lodi...',
+    'Submit': 'Tura',
+    'Back': 'Koma',
+    'Next': 'Na gaba',
+    'Previous': 'Na baya',
+    'Close': 'Rufe',
+    
+    // Course related
+    'My Courses': 'Darussan Na',
+    'Available Courses': 'Darussan da Aka Samu',
+    'Enroll': 'Yi Rajista',
+    'Course Code': 'Lambar Darasin',
+    'Instructor': 'Malami',
+    'Students': 'Dalibai',
+    'Create Course': 'Kirkiri Darasin',
+    'Join Course': 'Shiga Darasin',
+    'Course Details': 'Bayanin Darasin',
+    
+    // Assignment related
+    'Due Date': 'Kwanan Lokaci',
+    'Submission': 'Aiken',
+    'Grade': 'Daraja',
+    'Points': 'Alamomi',
+    'Late Submission': 'Aiken Makura',
+    'On Time': 'A Lokaci',
+    'Graded': 'An Kiyasta',
+    'Ungraded': 'Ba a Kiyasta ba',
+    
+    // Discussion related
+    'Post': 'Rubutu',
+    'Reply': 'Amsa',
+    'Comments': 'Ra\'ayoyi',
+    'Announcements': 'Sanarwa',
+    
+    // Profile and Settings
+    'Account': 'Asusun',
+    'Password': 'Kalmar Sirri',
+    'Email': 'Imel',
+    'Name': 'Suna',
+    'First Name': 'Sunan Farko',
+    'Last Name': 'Sunan Karshe',
+    'Profile Picture': 'Hoton Bayani',
+    'Change Password': 'Canza Kalmar Sirri',
+    'Language': 'Yare',
+    'Theme': 'Jigo',
+    'Light Mode': 'Farin Yanayi',
+    'Dark Mode': 'Bakin Yanayi',
+    'Notifications': 'Sanerwa',
+    'Security': 'Tsaro',
+    'Accessibility': 'Samuwa',
+    
+    // Messages
+    'Successfully saved': 'An yi nasarar ajiye',
+    'Changes applied': 'An yi canji',
+    'An error occurred': 'Kuskure ya faru',
+    'Please try again': 'Da fatan a sake gwadawa',
+    'Are you sure?': 'Kana tabbata?',
+    'This action cannot be undone': 'Ba za\'a iya janye wannan aiki ba',
+    
+    // Settings sections
+    'General Settings': 'Saitunan Gaba Ɗaya',
+    'Appearance Settings': 'Saitunan Kama',
+    'Language Settings': 'Saitunan Yare',
+    'Notification Settings': 'Saitunan Sanerwa',
+    'Security Settings': 'Saitunan Tsaro',
+    'Accessibility Settings': 'Saitunan Samuwa',
+    
+    // Specific to language settings
+    'Display Language': 'Nuna Yare',
+    'Date & Time Format': 'Tsarin Kwanan Wata & Lokaci',
+    'Date Format': 'Tsarin Kwanan Wata',
+    'Time Format': 'Tsarin Lokaci',
+    'Hausa Language Support': 'Goyon Bayan Yaren Hausa',
+    'Hausa language is currently in beta': 'Yaren Hausa yana cikin beta yanzu',
+    'Some parts of the interface may still appear in English': 'Wasu sassan na iya faruwa a Ingilishi'
+};
+
+/**
+ * Apply Hausa translations to the interface
+ * This function finds text nodes in the DOM and replaces them with Hausa equivalents
+ */
+function applyHausaTranslations() {
+    // Store the fact that Hausa is the active language
+    localStorage.setItem('language', 'ha');
+    
+    // Walk through text nodes and translate them
+    const textNodes = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+    );
+    
+    let node;
+    while (node = textNodes.nextNode()) {
+        const text = node.nodeValue.trim();
+        if (text && hausaTranslations[text]) {
+            node.nodeValue = node.nodeValue.replace(text, hausaTranslations[text]);
+        }
+    }
+    
+    // Translate attributes like placeholders and titles
+    const elements = document.querySelectorAll('[placeholder], [title], [aria-label]');
+    elements.forEach(el => {
+        if (el.hasAttribute('placeholder')) {
+            const text = el.getAttribute('placeholder');
+            if (hausaTranslations[text]) {
+                el.setAttribute('placeholder', hausaTranslations[text]);
+            }
+        }
+        
+        if (el.hasAttribute('title')) {
+            const text = el.getAttribute('title');
+            if (hausaTranslations[text]) {
+                el.setAttribute('title', hausaTranslations[text]);
+            }
+        }
+        
+        if (el.hasAttribute('aria-label')) {
+            const text = el.getAttribute('aria-label');
+            if (hausaTranslations[text]) {
+                el.setAttribute('aria-label', hausaTranslations[text]);
+            }
+        }
+    });
+    
+    // Update document direction for RTL languages if needed (Hausa is LTR so we don't change it)
+    document.documentElement.setAttribute('lang', 'ha');
+}
+
+/**
+ * Reset interface language to default (English)
+ */
+function resetToDefaultLanguage() {
+    localStorage.removeItem('language');
+    document.documentElement.setAttribute('lang', 'en');
+    
+    // The actual text resetting happens on page reload
+    // For a full app, you would implement proper translation infrastructure
+    // Here we'll just reload the current view to simplify
+    if (currentView) {
+        loadView(currentView);
+    }
+}
+
+/**
+ * Initialize language based on user preference
+ * Call this during application startup
+ */
+function initializeLanguage() {
+    const savedLanguage = localStorage.getItem('language');
+    if (savedLanguage === 'ha') {
+        applyHausaTranslations();
+    }
+}
+
+/**
+ * Show modal with active user sessions
+ */
+function showSessionsModal() {
+    // In a real app, you would fetch active sessions from the server
+    // For demonstration, we'll use mock data
+    const mockSessions = [
+        { 
+            id: '1', 
+            device: 'Chrome on Windows', 
+            location: 'Lagos, Nigeria', 
+            lastActive: new Date(Date.now() - 1000 * 60), // 1 minute ago
+            isCurrent: true 
+        },
+        { 
+            id: '2', 
+            device: 'Safari on iPhone', 
+            location: 'Abuja, Nigeria', 
+            lastActive: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
+            isCurrent: false 
+        },
+        { 
+            id: '3', 
+            device: 'Firefox on Mac', 
+            location: 'Kano, Nigeria', 
+            lastActive: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
+            isCurrent: false 
+        }
+    ];
+    
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Active Sessions</h3>
+                    <button id="closeSessionsModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <p class="text-gray-600 dark:text-gray-400 mb-4">
+                    These are the devices currently logged into your account. If you don't recognize a session, you should revoke it and change your password.
+                </p>
+                
+                <div class="space-y-3 mb-6">
+                    ${mockSessions.map(session => `
+                        <div class="p-4 border ${session.isCurrent ? 'border-primary dark:border-primaryLight' : 'border-gray-200 dark:border-gray-700'} rounded-lg">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="flex items-center">
+                                        <i class="fas ${session.device.includes('Chrome') ? 'fa-chrome' : 
+                                                      session.device.includes('Safari') ? 'fa-safari' : 
+                                                      session.device.includes('Firefox') ? 'fa-firefox' : 
+                                                      'fa-globe'} mr-2 text-gray-500"></i>
+                                        <span class="font-medium">${session.device}</span>
+                                        ${session.isCurrent ? '<span class="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full">Current</span>' : ''}
+                                    </div>
+                                    <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                        <span><i class="fas fa-map-marker-alt mr-1"></i> ${session.location}</span>
+                                        <span class="ml-3"><i class="fas fa-clock mr-1"></i> Last active ${formatTimeAgo(session.lastActive)}</span>
+                                    </div>
+                                </div>
+                                
+                                ${!session.isCurrent ? `
+                                    <button class="revoke-session-btn px-3 py-1 text-sm text-red-600 border border-red-600 rounded hover:bg-red-600 hover:text-white dark:text-red-400 dark:border-red-400 dark:hover:bg-red-500/30 transition" data-id="${session.id}">
+                                        Revoke
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="flex justify-between">
+                    <button id="revokeAllBtn" class="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-600 hover:text-white dark:text-red-400 dark:border-red-400 dark:hover:bg-red-500/30 transition">
+                        Revoke All Other Sessions
+                    </button>
+                    
+                    <button id="closeSessionsBtn" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeSessionsModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('closeSessionsBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Individual session revocation
+    const revokeButtons = document.querySelectorAll('.revoke-session-btn');
+    revokeButtons.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const sessionId = btn.dataset.id;
+            
+            // In a real app, this would call an API endpoint
+            try {
+                // Mock API call
+                // await userService.revokeSession(sessionId);
+                
+                // Show success toast
+                showToast('Session revoked successfully');
+                
+                // Remove the session from the DOM
+                btn.closest('.p-4').remove();
+            } catch (error) {
+                console.error('Error revoking session:', error);
+                showToast('Failed to revoke session', 'error');
+            }
+        });
+    });
+    
+    // Revoke all other sessions
+    document.getElementById('revokeAllBtn').addEventListener('click', async () => {
+        // In a real app, this would call an API endpoint
+        try {
+            // Mock API call
+            // await userService.revokeAllOtherSessions();
+            
+            // Show success toast
+            showToast('All other sessions revoked successfully');
+            
+            // Remove all non-current sessions from the DOM
+            document.querySelectorAll('.revoke-session-btn').forEach(btn => {
+                btn.closest('.p-4').remove();
+            });
+        } catch (error) {
+            console.error('Error revoking sessions:', error);
+            showToast('Failed to revoke sessions', 'error');
+        }
+    });
+}
   
+/**
+ * Show delete account confirmation modal
+ */
+function showDeleteAccountModal() {
+    const modalHtml = `
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-red-600 dark:text-red-400">Delete Account</h3>
+                    <button id="closeDeleteAccountModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg mb-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-triangle text-red-500"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800 dark:text-red-300">Warning: This action cannot be undone</h3>
+                            <div class="mt-2 text-sm text-red-700 dark:text-red-200">
+                                <p>
+                                    Deleting your account will permanently remove all of your data, including:
+                                </p>
+                                <ul class="list-disc list-inside mt-2">
+                                    <li>Course enrollments and progress</li>
+                                    <li>Assignment submissions</li>
+                                    <li>Discussion posts and comments</li>
+                                    <li>Personal information and settings</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="deleteAccountForm" class="space-y-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
+                        <input type="password" id="confirmDeletePassword" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200" required>
+                    </div>
+                    
+                    <div class="flex items-center">
+                        <input type="checkbox" id="confirmDeleteCheckbox" class="form-checkbox rounded text-red-500 focus:ring-red-500 h-4 w-4" required>
+                        <label for="confirmDeleteCheckbox" class="ml-2 text-gray-700 dark:text-gray-300">I understand that this action cannot be undone</label>
+                    </div>
+                    
+                    <div id="deleteAccountError" class="text-red-500 hidden"></div>
+                    
+                    <div class="flex justify-end pt-2">
+                        <button type="button" id="cancelDeleteBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+                            Delete Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to DOM
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    
+    // Set up event listeners
+    document.getElementById('closeDeleteAccountModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+    
+    // Form submission
+    document.getElementById('deleteAccountForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const password = document.getElementById('confirmDeletePassword').value;
+        const confirmed = document.getElementById('confirmDeleteCheckbox').checked;
+        const errorDiv = document.getElementById('deleteAccountError');
+        
+        errorDiv.classList.add('hidden');
+        
+        if (!password) {
+            errorDiv.textContent = 'Please enter your password';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        if (!confirmed) {
+            errorDiv.textContent = 'Please confirm that you understand this action cannot be undone';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        
+        try {
+            // In a real app, this would call the API to delete the account
+            await userService.deleteAccount({ password });
+            
+            // Show success message
+            showToast('Your account has been deleted');
+            
+            // Redirect to logout
+            setTimeout(() => {
+                window.location.href = '/logout';
+            }, 2000);
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            errorDiv.textContent = error.message || 'Failed to delete account. Please check your password and try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    });
+}
 
 

@@ -48,6 +48,45 @@ const userSchema = new mongoose.Schema({
     type: String,
     maxlength: [500, 'Bio cannot be more than 500 characters']
   },
+    // Notification settings
+    notificationSettings: {
+        emailNotifications: {
+            type: Boolean,
+            default: true
+        },
+        emailAssignmentReminders: {
+            type: Boolean,
+            default: true
+        },
+        emailCourseAnnouncements: {
+            type: Boolean,
+            default: true
+        },
+        emailDiscussionReplies: {
+            type: Boolean,
+            default: true
+        }
+    },
+    
+    // Language preferences
+    language: {
+        type: String,
+        default: 'en'  // ISO 639-1 language code
+    },
+    region: {
+        type: String,
+        default: 'US'  // ISO 3166-1 alpha-2 country code
+    },
+    dateFormat: {
+        type: String,
+        enum: ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'],
+        default: 'MM/DD/YYYY'
+    },
+    timeFormat: {
+        type: String,
+        enum: ['12h', '24h'],
+        default: '12h'
+    },
   major: String,
   enrolledCourses: [{
     type: mongoose.Schema.ObjectId,
@@ -70,6 +109,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
+  
 });
 
 // Virtual property for full name

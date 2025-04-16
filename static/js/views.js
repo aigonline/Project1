@@ -55,6 +55,11 @@ function loadLoginPage() {
   
         // Log in once and get the user data
         const result = await authService.login(email, password);
+
+        if (!result) {
+            loadLoginPage();
+            
+        }
   
         // Update UI with user info
         showUIElements();
@@ -2004,7 +2009,7 @@ function showEnrollmentOptionsModal(course) {
                     <div>
                         <label class="block text-gray-700 dark:text-gray-300 mb-2">Current Enrollment Code</label>
                         <div class="flex items-center">
-                            <input type="text" value="${course.enrollmentKey}" readonly class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                            <input type="text" value="${course.enrollmentCode}" readonly class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                             <button type="button" class="ml-2 text-primary dark:text-primaryLight" onclick="copyToClipboard('${course.enrollmentCode}')">
                                 <i class="fas fa-copy"></i>
                             </button>
@@ -6009,7 +6014,9 @@ async function loadProfile() {
                                 </button>
                             </div>
                             <h2 class="text-xl font-bold">${userData.firstName} ${userData.lastName}</h2>
-                            <p class="text-gray-600 dark:text-gray-400">${userData.email}</p>
+                            <p class="mt-1 text-gray-600 dark:text-gray-400">E-mail: </bold>${userData.email}</p>
+    
+                            <p class="mt-2 mb-2 text-gray-600 dark:text-gray-400">Bio: ${userData.bio || "No Bio entered yet."}</p>
                             <div class="mt-2 px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                                 ${formatRoleLabel(userData.role)}
                             </div>
@@ -6962,196 +6969,800 @@ function showAccountSettingsModal() {
     });
 }
 
-// Settings view
+/**
+ * Load user settings page with theme, language, and notification preferences
+ * @returns {Promise<void>}
+ */
 async function loadSettings() {
     try {
-        // Make sure we have the latest user data
-        const userData = await authService.getCurrentUser();
-        const user = userData.data.user;
-        
+        // Show loading state
         content.innerHTML = `
-            <h2 class="text-2xl font-bold mb-6">Settings</h2>
+            <div class="flex justify-center items-center min-h-[300px]">
+                <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
+        
+        // Fetch user data and settings
+        const userResponse = await userService.getCurrentUser();
+        const userData = userResponse.data.user;
+        
+        // Get current theme preference
+        const isDarkMode = document.documentElement.classList.contains('dark');
+        
+        // Get current language preference
+        const currentLanguage = userData.language || 'en';
+        const currentRegion = userData.region || 'US';
+        
+        // Get notification settings
+        const notificationSettings = userData.notificationSettings || {
+            emailNotifications: true,
+            emailAssignmentReminders: true,
+            emailCourseAnnouncements: true,
+            emailDiscussionReplies: true
+        };
+        
+        // Define available languages
+        const languages = [
+            { code: 'en', region: 'US', name: 'English (United States)' },
+            { code: 'en', region: 'GB', name: 'English (United Kingdom)' },
+            { code: 'fr', region: 'FR', name: 'Français (France)' },
+            { code: 'es', region: 'ES', name: 'Español (España)' },
+            { code: 'de', region: 'DE', name: 'Deutsch (Deutschland)' },
+            { code: 'ha', region: 'NG', name: 'Hausa (Nigeria)' },
+            { code: 'ar', region: 'SA', name: 'العربية (السعودية)' },
+            { code: 'zh', region: 'CN', name: '中文 (中国)' },
+            { code: 'ja', region: 'JP', name: '日本語 (日本)' }
+        ];
+        
+        // Build the settings page
+        content.innerHTML = `
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold">Settings</h1>
+                <p class="text-gray-600 dark:text-gray-400">Customize your experience</p>
+            </div>
             
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden mb-6">
-                <div class="flex flex-wrap">
-                    <div class="w-full md:w-1/4 bg-gray-50 dark:bg-gray-750">
-                        <div class="p-5">
-                            <h3 class="text-lg font-semibold mb-3">Settings</h3>
-                            <nav class="settings-nav">
-                                <a href="#" class="settings-nav-link block py-2 px-3 text-primary dark:text-primaryLight bg-white dark:bg-gray-700 rounded-lg mb-1" data-section="account">Account</a>
-                                <a href="#" class="settings-nav-link block py-2 px-3 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg mb-1" data-section="security">Security</a>
-                                <a href="#" class="settings-nav-link block py-2 px-3 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg mb-1" data-section="appearance">Appearance</a>
-                                <a href="#" class="settings-nav-link block py-2 px-3 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg mb-1" data-section="notifications">Notifications</a>
-                            </nav>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left sidebar: Settings categories -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sticky top-4">
+                        <h2 class="font-semibold text-lg mb-4">Settings</h2>
+                        
+                        <div class="space-y-1">
+                            <button id="generalSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg transition bg-primary bg-opacity-10 text-primary dark:bg-opacity-20 dark:text-primaryLight">
+                                <i class="fas fa-cog mr-2"></i> General
+                            </button>
+                            <button id="appearanceSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                                <i class="fas fa-palette mr-2"></i> Appearance
+                            </button>
+                            <button id="languageSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                                <i class="fas fa-globe mr-2"></i> Language
+                            </button>
+                            <button id="notificationSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                                <i class="fas fa-bell mr-2"></i> Notifications
+                            </button>
+                            <button id="securitySettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                                <i class="fas fa-shield-alt mr-2"></i> Security
+                            </button>
+                            <button id="accessibilitySettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                                <i class="fas fa-universal-access mr-2"></i> Accessibility
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right content: Settings panels -->
+                <div class="lg:col-span-2">
+                    <!-- General Settings Panel -->
+                    <div id="generalSettingsPanel" class="settings-panel bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+                        <h2 class="text-xl font-semibold mb-4">General Settings</h2>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="font-medium text-lg mb-2">Account Information</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Basic information about your account.</p>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label class="block text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                                        <input type="text" id="firstName" value="${userData.firstName}" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                                        <input type="text" id="lastName" value="${userData.lastName}" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                                    <input type="email" id="email" value="${userData.email}" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Bio</label>
+                                    <textarea id="bio" rows="3" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${userData.bio || ''}</textarea>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Brief description about yourself that will be visible on your profile.</p>
+                                </div>
+                                
+                                <div class="flex justify-end">
+                                    <button id="saveGeneralBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Profile Picture</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Upload a profile picture to personalize your account.</p>
+                                
+                                <div class="flex items-center mb-4">
+                                    <img src="${getProfileImageUrl(userData)}" alt="${userData.firstName}" class="w-20 h-20 rounded-full mr-4">
+                                    <div>
+                                        <button id="changeAvatarBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition mb-2">
+                                            Change Picture
+                                        </button>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">JPG, PNG or GIF. Max size 5MB.</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="w-full md:w-3/4 p-5">
-                        <!-- Account Section -->
-                        <div id="account-section" class="settings-section">
-                            <h3 class="text-lg font-semibold mb-4">Account Settings</h3>
-                            
-                            <div class="mb-6">
-                                <label class="block text-gray-700 dark:text-gray-300 mb-2">Profile Picture</label>
-                                <div class="flex items-center">
-                                    <img src="${getProfileImageUrl(user)}" alt="Profile" class="w-20 h-20 rounded-full mr-4">
-                                    <button id="changePhotoBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">Change Photo</button>
+                    <!-- Appearance Settings Panel -->
+                    <div id="appearanceSettingsPanel" class="settings-panel bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden">
+                        <h2 class="text-xl font-semibold mb-4">Appearance Settings</h2>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="font-medium text-lg mb-2">Theme</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Choose between light and dark mode.</p>
+                                
+                                <div class="flex space-x-4 mb-4">
+                                    <div class="flex-1">
+                                        <label class="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer ${!isDarkMode ? 'ring-2 ring-primary' : ''}">
+                                            <input type="radio" name="theme" value="light" class="sr-only" ${!isDarkMode ? 'checked' : ''}>
+                                            <div class="mr-3 bg-white border border-gray-300 rounded-full w-6 h-6 flex items-center justify-center">
+                                                <div class="bg-primary rounded-full w-3 h-3 ${!isDarkMode ? 'block' : 'hidden'}"></div>
+                                            </div>
+                                            <div>
+                                                <span class="block font-medium">Light Mode</span>
+                                                <span class="block text-sm text-gray-500 dark:text-gray-400">Light background with dark text</span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="flex-1">
+                                        <label class="flex items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer ${isDarkMode ? 'ring-2 ring-primary' : ''}">
+                                            <input type="radio" name="theme" value="dark" class="sr-only" ${isDarkMode ? 'checked' : ''}>
+                                            <div class="mr-3 bg-white border border-gray-300 rounded-full w-6 h-6 flex items-center justify-center">
+                                                <div class="bg-primary rounded-full w-3 h-3 ${isDarkMode ? 'block' : 'hidden'}"></div>
+                                            </div>
+                                            <div>
+                                                <span class="block font-medium">Dark Mode</span>
+                                                <span class="block text-sm text-gray-500 dark:text-gray-400">Dark background with light text</span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center mb-4">
+                                    <input type="checkbox" id="followSystemTheme" class="form-checkbox rounded text-primary focus:ring-primary h-4 w-4" checked>
+                                    <label for="followSystemTheme" class="ml-2 text-gray-700 dark:text-gray-300">Use system theme preference when available</label>
                                 </div>
                             </div>
                             
-                            <form id="accountForm" class="space-y-4">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                    <div>
-                                        <label class="block text-gray-700 dark:text-gray-300 mb-2">First Name</label>
-                                        <input type="text" id="firstName" value="${user.firstName}" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                    </div>
-                                    <div>
-                                        <label class="block text-gray-700 dark:text-gray-300 mb-2">Last Name</label>
-                                        <input type="text" id="lastName" value="${user.lastName}" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                    </div>
-                                </div>
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Layout Density</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Adjust the amount of content shown on screen.</p>
                                 
-                                <div class="mb-6">
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Email</label>
-                                    <input type="email" id="email" value="${user.email}" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                <div class="flex flex-col space-y-3 mb-4">
+                                    <label class="flex items-center">
+                                        <input type="radio" name="density" value="comfortable" class="text-primary focus:ring-primary h-4 w-4" checked>
+                                        <span class="ml-2 text-gray-700 dark:text-gray-300">Comfortable (Default)</span>
+                                    </label>
+                                    
+                                    <label class="flex items-center">
+                                        <input type="radio" name="density" value="compact" class="text-primary focus:ring-primary h-4 w-4">
+                                        <span class="ml-2 text-gray-700 dark:text-gray-300">Compact</span>
+                                    </label>
                                 </div>
-                                
-                                <div class="mb-6">
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Major/Field of Study</label>
-                                    <input type="text" id="major" value="${user.major || ''}" placeholder="e.g., Computer Science, Mathematics" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                                
-                                <div class="mb-6">
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Bio</label>
-                                    <textarea id="bio" rows="4" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${user.bio || ''}</textarea>
-                                </div>
-                                
-                                <div id="accountError" class="text-red-500 hidden"></div>
-                                
-                                <div class="flex justify-end">
-                                    <button type="button" id="cancelAccountBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">Cancel</button>
-                                    <button type="submit" id="saveAccountBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">Save Changes</button>
-                                </div>
-                            </form>
-                        </div>
-                        
-                        <!-- Security Section -->
-                        <div id="security-section" class="settings-section hidden">
-                            <h3 class="text-lg font-semibold mb-4">Security Settings</h3>
+                            </div>
                             
-                            <form id="passwordForm" class="space-y-4">
-                                <div class="mb-6">
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
-                                    <input type="password" id="currentPassword" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                                
-                                <div class="mb-6">
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">New Password</label>
-                                    <input type="password" id="newPassword" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                                
-                                <div class="mb-6">
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
-                                    <input type="password" id="confirmPassword" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                </div>
-                                
-                                <div id="passwordError" class="text-red-500 hidden"></div>
-                                
-                                <div class="flex justify-end">
-                                    <button type="button" id="cancelPasswordBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">Cancel</button>
-                                    <button type="submit" id="savePasswordBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">Update Password</button>
-                                </div>
-                            </form>
+                            <div class="flex justify-end">
+                                <button id="saveAppearanceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Save Changes
+                                </button>
+                            </div>
                         </div>
+                    </div>
+                    
+                    <!-- Language Settings Panel -->
+                    <div id="languageSettingsPanel" class="settings-panel bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden">
+                        <h2 class="text-xl font-semibold mb-4">Language Settings</h2>
                         
-                        <!-- Appearance Section -->
-                        <div id="appearance-section" class="settings-section hidden">
-                            <h3 class="text-lg font-semibold mb-4">Appearance Settings</h3>
-                            
-                            <div class="space-y-6">
-                                <div>
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Theme</label>
-                                    <div class="flex space-x-4">
-                                        <button id="lightThemeBtn" class="px-4 py-2 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition" ${!document.documentElement.classList.contains('dark') ? 'disabled' : ''}>
-                                            <i class="fas fa-sun text-yellow-500 mr-2"></i>Light
-                                        </button>
-                                        <button id="darkThemeBtn" class="px-4 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg shadow-sm hover:bg-gray-900 transition" ${document.documentElement.classList.contains('dark') ? 'disabled' : ''}>
-                                            <i class="fas fa-moon text-blue-300 mr-2"></i>Dark
-                                        </button>
-                                        <button id="systemThemeBtn" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm hover:bg-gray-200 dark:hover:bg-gray-800 dark:text-white transition">
-                                            <i class="fas fa-desktop mr-2"></i>System Default
-                                        </button>
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="font-medium text-lg mb-2">Display Language</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Select your preferred language for the interface.</p>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Language</label>
+                                    <select id="languageSelect" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                        ${languages.map(lang => `
+                                            <option value="${lang.code}|${lang.region}" ${currentLanguage === lang.code && currentRegion === lang.region ? 'selected' : ''}>
+                                                ${lang.name}
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                                
+                                <div class="mt-6 ${currentLanguage === 'ha' ? '' : 'hidden'}" id="hausaInfoBox">
+                                    <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded">
+                                        <div class="flex">
+                                            <div class="flex-shrink-0">
+                                                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                                            </div>
+                                            <div class="ml-3">
+                                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-300">Hausa Language Support</h3>
+                                                <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-200">
+                                                    <p>
+                                                        Hausa language is currently in beta. Some parts of the interface may still appear in English.
+                                                        <br><br>
+                                                        <span dir="rtl" class="block">Hausa suna da goyon baya na beta. Wasu sassan na iya faruwa a Ingilishi.</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Date & Time Format</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Choose how dates and times are displayed.</p>
                                 
-                                <div>
-                                    <label class="block text-gray-700 dark:text-gray-300 mb-2">Font Size</label>
-                                    <select id="fontSize" class="w-full md:w-1/3 px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
-                                        <option value="small">Small</option>
-                                        <option value="medium" selected>Medium (Default)</option>
-                                        <option value="large">Large</option>
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Date Format</label>
+                                    <select id="dateFormatSelect" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                        <option value="MM/DD/YYYY" ${currentRegion === 'US' ? 'selected' : ''}>MM/DD/YYYY (e.g., 12/31/2023)</option>
+                                        <option value="DD/MM/YYYY" ${currentRegion !== 'US' ? 'selected' : ''}>DD/MM/YYYY (e.g., 31/12/2023)</option>
+                                        <option value="YYYY-MM-DD">YYYY-MM-DD (e.g., 2023-12-31)</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Time Format</label>
+                                    <select id="timeFormatSelect" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                                        <option value="12h" ${currentRegion === 'US' ? 'selected' : ''}>12-hour (e.g., 3:30 PM)</option>
+                                        <option value="24h" ${currentRegion !== 'US' ? 'selected' : ''}>24-hour (e.g., 15:30)</option>
                                     </select>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <!-- Notifications Section -->
-                        <div id="notifications-section" class="settings-section hidden">
-                            <h3 class="text-lg font-semibold mb-4">Notification Settings</h3>
                             
-                            <div class="space-y-4">
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-750 rounded-lg">
-                                    <div>
-                                        <p class="font-medium">Assignment Reminders</p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">Receive notifications about upcoming assignments</p>
-                                    </div>
-                                    <label class="switch relative inline-block w-12 h-6">
-                                        <input type="checkbox" checked class="opacity-0 w-0 h-0">
-                                        <span class="slider absolute cursor-pointer inset-0 bg-gray-300 dark:bg-gray-600 rounded-full transition-all before:absolute before:h-4 before:w-4 before:left-1 before:bottom-1 before:bg-white before:rounded-full before:transition-all checked:bg-primary checked:before:translate-x-6"></span>
+                            <div class="flex justify-end">
+                                <button id="saveLanguageBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification Settings Panel -->
+                    <div id="notificationSettingsPanel" class="settings-panel bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden">
+                        <h2 class="text-xl font-semibold mb-4">Notification Settings</h2>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="font-medium text-lg mb-2">Email Notifications</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Control which emails you receive.</p>
+                                
+                                <div class="space-y-3 mb-4">
+                                    <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <div>
+                                            <span class="block font-medium text-gray-700 dark:text-gray-300">All Email Notifications</span>
+                                            <span class="block text-sm text-gray-500 dark:text-gray-400">Main toggle for all email notifications</span>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                                            <input type="checkbox" id="emailNotifications" class="notification-toggle sr-only" ${notificationSettings.emailNotifications ? 'checked' : ''}>
+                                            <span class="toggle-bg block w-12 h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer"></span>
+                                        </div>
                                     </label>
+                                    
+                                    <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <div>
+                                            <span class="block font-medium text-gray-700 dark:text-gray-300">Assignment Reminders</span>
+                                            <span class="block text-sm text-gray-500 dark:text-gray-400">Notifications about upcoming assignments</span>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                                            <input type="checkbox" id="emailAssignmentReminders" class="notification-toggle sr-only" ${notificationSettings.emailAssignmentReminders ? 'checked' : ''}>
+                                            <span class="toggle-bg block w-12 h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer"></span>
+                                        </div>
+                                    </label>
+                                    
+                                    <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <div>
+                                            <span class="block font-medium text-gray-700 dark:text-gray-300">Course Announcements</span>
+                                            <span class="block text-sm text-gray-500 dark:text-gray-400">Updates and announcements from your courses</span>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                                            <input type="checkbox" id="emailCourseAnnouncements" class="notification-toggle sr-only" ${notificationSettings.emailCourseAnnouncements ? 'checked' : ''}>
+                                            <span class="toggle-bg block w-12 h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer"></span>
+                                        </div>
+                                    </label>
+                                    
+                                    <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <div>
+                                            <span class="block font-medium text-gray-700 dark:text-gray-300">Discussion Replies</span>
+                                            <span class="block text-sm text-gray-500 dark:text-gray-400">Responses to your discussion posts</span>
+                                        </div>
+                                        <div class="relative inline-block w-12 h-6 transition duration-200 ease-in-out">
+                                            <input type="checkbox" id="emailDiscussionReplies" class="notification-toggle sr-only" ${notificationSettings.emailDiscussionReplies ? 'checked' : ''}>
+                                            <span class="toggle-bg block w-12 h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer"></span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Browser Notifications</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Allow browser notifications for important updates.</p>
+                                
+                                <div class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
+                                    <div>
+                                        <span class="block font-medium text-gray-700 dark:text-gray-300">Browser Notifications</span>
+                                        <span class="block text-sm text-gray-500 dark:text-gray-400">Allow notifications on this device</span>
+                                    </div>
+                                    <button id="browserNotificationsBtn" class="px-3 py-1.5 bg-primary hover:bg-primaryDark text-white rounded-lg transition text-sm">
+                                        Enable
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-end">
+                                <button id="saveNotificationsBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Save Changes
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Settings Panel -->
+                    <div id="securitySettingsPanel" class="settings-panel bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden">
+                        <h2 class="text-xl font-semibold mb-4">Security Settings</h2>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="font-medium text-lg mb-2">Password</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Change your account password.</p>
+                                
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
+                                    <input type="password" id="currentPassword" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                 </div>
                                 
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-750 rounded-lg">
-                                    <div>
-                                        <p class="font-medium">Discussion Replies</p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">Receive notifications when someone replies to your discussions</p>
-                                    </div>
-                                    <label class="switch relative inline-block w-12 h-6">
-                                        <input type="checkbox" checked class="opacity-0 w-0 h-0">
-                                        <span class="slider absolute cursor-pointer inset-0 bg-gray-300 dark:bg-gray-600 rounded-full transition-all before:absolute before:h-4 before:w-4 before:left-1 before:bottom-1 before:bg-white before:rounded-full before:transition-all checked:bg-primary checked:before:translate-x-6"></span>
-                                    </label>
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">New Password</label>
+                                    <input type="password" id="newPassword" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                 </div>
                                 
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-750 rounded-lg">
-                                    <div>
-                                        <p class="font-medium">Course Announcements</p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">Receive notifications about course announcements</p>
-                                    </div>
-                                    <label class="switch relative inline-block w-12 h-6">
-                                        <input type="checkbox" checked class="opacity-0 w-0 h-0">
-                                        <span class="slider absolute cursor-pointer inset-0 bg-gray-300 dark:bg-gray-600 rounded-full transition-all before:absolute before:h-4 before:w-4 before:left-1 before:bottom-1 before:bg-white before:rounded-full before:transition-all checked:bg-primary checked:before:translate-x-6"></span>
-                                    </label>
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
+                                    <input type="password" id="confirmPassword" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                 </div>
                                 
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-750 rounded-lg">
-                                    <div>
-                                        <p class="font-medium">Resource Updates</p>
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">Receive notifications when new resources are added</p>
-                                    </div>
-                                    <label class="switch relative inline-block w-12 h-6">
-                                        <input type="checkbox" class="opacity-0 w-0 h-0">
-                                        <span class="slider absolute cursor-pointer inset-0 bg-gray-300 dark:bg-gray-600 rounded-full transition-all before:absolute before:h-4 before:w-4 before:left-1 before:bottom-1 before:bg-white before:rounded-full before:transition-all checked:bg-primary checked:before:translate-x-6"></span>
-                                    </label>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                                    Password should be at least 8 characters and include a mix of uppercase, lowercase, numbers, and special characters.
+                                </p>
+                                
+                                <div class="flex justify-end">
+                                    <button id="changePasswordBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                        Change Password
+                                    </button>
                                 </div>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Account Security</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Manage your account security settings.</p>
+                                
+                                <div class="space-y-3 mb-4">
+                                    <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="font-medium text-gray-700 dark:text-gray-300">Session Management</span>
+                                            <button id="viewSessionsBtn" class="text-primary dark:text-primaryLight hover:underline text-sm">
+                                                View Active Sessions
+                                            </button>
+                                        </div>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">Manage your active sessions and sign out from other devices.</p>
+                                    </div>
+                                    
+                                    <div class="p-3 border border-red-200 dark:border-red-900/50 rounded-lg">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="font-medium text-red-600 dark:text-red-400">Delete Account</span>
+                                            <button id="deleteAccountBtn" class="px-3 py-1 text-xs text-red-600 border border-red-600 rounded hover:bg-red-600 hover:text-white dark:text-red-400 dark:border-red-400 dark:hover:bg-red-500/30 transition">
+                                                Delete
+                                            </button>
+                                        </div>
+                                        <p class="text-sm text-red-600 dark:text-red-400">Permanently delete your account and all associated data.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Accessibility Settings Panel -->
+                    <div id="accessibilitySettingsPanel" class="settings-panel bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 hidden">
+                        <h2 class="text-xl font-semibold mb-4">Accessibility Settings</h2>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="font-medium text-lg mb-2">Text Size</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Adjust the size of text throughout the application.</p>
+                                
+                                <div class="flex items-center justify-between mb-4">
+                                    <span class="text-sm">A</span>
+                                    <input type="range" id="textSizeRange" min="80" max="150" value="100" class="w-full mx-4">
+                                    <span class="text-lg">A</span>
+                                </div>
+                                
+                                <p class="text-base" id="textSizePreview">This is a preview of the text size.</p>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Motion & Animations</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Reduce motion and animations.</p>
+                                
+                                <div class="flex items-center mb-4">
+                                    <input type="checkbox" id="reduceMotion" class="form-checkbox rounded text-primary focus:ring-primary h-4 w-4">
+                                    <label for="reduceMotion" class="ml-2 text-gray-700 dark:text-gray-300">Reduce animations and motion effects</label>
+                                </div>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                                <h3 class="font-medium text-lg mb-2">Content Display</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-3">Adjust how content is displayed.</p>
+                                
+                                <div class="flex items-center mb-4">
+                                    <input type="checkbox" id="highContrast" class="form-checkbox rounded text-primary focus:ring-primary h-4 w-4">
+                                    <label for="highContrast" class="ml-2 text-gray-700 dark:text-gray-300">High contrast mode</label>
+                                </div>
+                                
+                                <div class="flex items-center mb-4">
+                                    <input type="checkbox" id="dyslexicFont" class="form-checkbox rounded text-primary focus:ring-primary h-4 w-4">
+                                    <label for="dyslexicFont" class="ml-2 text-gray-700 dark:text-gray-300">Use dyslexia-friendly font</label>
+                                </div>
+                            </div>
+                            
+                            <div class="flex justify-end">
+                                <button id="saveAccessibilityBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                                    Save Changes
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            
+
         `;
         
-        // Setup event listeners
-        setupSettingsEventListeners();
+        // Set up event listeners
+        
+        // Category navigation
+        const categoryBtns = document.querySelectorAll('.settings-category-btn');
+        const settingsPanels = document.querySelectorAll('.settings-panel');
+        
+        categoryBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Determine which panel to show
+                const targetPanelId = btn.id.replace('Btn', 'Panel');
+                
+                // Update active button
+                categoryBtns.forEach(b => {
+                    b.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
+                    b.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-750');
+                });
+                
+                btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
+                btn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-750');
+                
+                // Update visible panel
+                settingsPanels.forEach(panel => {
+                    panel.classList.add('hidden');
+                });
+                
+                document.getElementById(targetPanelId).classList.remove('hidden');
+            });
+        });
+        
+        // General settings save
+        document.getElementById('saveGeneralBtn').addEventListener('click', async () => {
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const email = document.getElementById('email').value;
+            const bio = document.getElementById('bio').value;
+            
+            try {
+                await userService.updateProfile({
+                    firstName,
+                    lastName,
+                    email,
+                    bio
+                });
+                
+                showToast('General settings updated successfully!');
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showToast('Failed to update profile settings', 'error');
+            }
+        });
+        
+        // Avatar change
+        document.getElementById('changeAvatarBtn').addEventListener('click', () => {
+            showChangeAvatarModal();
+        });
+        
+        // Theme settings
+        const themeRadios = document.querySelectorAll('input[name="theme"]');
+        themeRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                const theme = radio.value;
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            });
+        });
+        
+        // Save appearance settings
+        document.getElementById('saveAppearanceBtn').addEventListener('click', () => {
+            const followSystem = document.getElementById('followSystemTheme').checked;
+            const theme = document.querySelector('input[name="theme"]:checked').value;
+            const density = document.querySelector('input[name="density"]:checked').value;
+            
+            // Save theme preference
+            localStorage.setItem('theme', theme);
+            localStorage.setItem('followSystemTheme', followSystem);
+            localStorage.setItem('density', density);
+            
+            // Apply theme
+            if (followSystem) {
+                localStorage.removeItem('theme');
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            } else {
+                if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }
+            
+            // Apply density
+            if (density === 'compact') {
+                document.documentElement.classList.add('compact');
+            } else {
+                document.documentElement.classList.remove('compact');
+            }
+            
+            showToast('Appearance settings updated successfully!');
+        });
+        
+        // Language selection
+        const languageSelect = document.getElementById('languageSelect');
+        languageSelect.addEventListener('change', () => {
+            const hausaInfoBox = document.getElementById('hausaInfoBox');
+            const [lang, region] = languageSelect.value.split('|');
+            
+            if (lang === 'ha') {
+                hausaInfoBox.classList.remove('hidden');
+            } else {
+                hausaInfoBox.classList.add('hidden');
+            }
+        });
+        
+        // Save language settings
+        document.getElementById('saveLanguageBtn').addEventListener('click', async () => {
+            const [language, region] = document.getElementById('languageSelect').value.split('|');
+            const dateFormat = document.getElementById('dateFormatSelect').value;
+            const timeFormat = document.getElementById('timeFormatSelect').value;
+            
+            try {
+                await userService.updateLanguage({
+                    language,
+                    region,
+                    dateFormat,
+                    timeFormat
+                });
+                
+                localStorage.setItem('dateFormat', dateFormat);
+                localStorage.setItem('timeFormat', timeFormat);
+                
+                if (language === 'ha') {
+                    // Apply Hausa translations
+                    applyHausaTranslations();
+                } else {
+                    // Reset to default language
+                    resetToDefaultLanguage();
+                }
+                
+                showToast('Language settings updated successfully!');
+            } catch (error) {
+                console.error('Error updating language settings:', error);
+                showToast('Failed to update language settings', 'error');
+            }
+        });
+        
+        // Notification toggles
+        const notificationToggles = document.querySelectorAll('.notification-toggle');
+        notificationToggles.forEach(toggle => {
+            toggle.addEventListener('change', () => {
+                // If main toggle is unchecked, disable all others
+                if (toggle.id === 'emailNotifications' && !toggle.checked) {
+                    document.querySelectorAll('.notification-toggle:not(#emailNotifications)').forEach(t => {
+                        t.checked = false;
+                        t.disabled = true;
+                    });
+                }
+                
+                // If main toggle is checked, enable all others
+                if (toggle.id === 'emailNotifications' && toggle.checked) {
+                    document.querySelectorAll('.notification-toggle:not(#emailNotifications)').forEach(t => {
+                        t.disabled = false;
+                    });
+                }
+            });
+        });
+        
+        // Browser notifications button
+        document.getElementById('browserNotificationsBtn').addEventListener('click', () => {
+            // Request notification permission
+            if ('Notification' in window) {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        document.getElementById('browserNotificationsBtn').textContent = 'Enabled';
+                        document.getElementById('browserNotificationsBtn').classList.add('bg-green-500');
+                        document.getElementById('browserNotificationsBtn').classList.remove('bg-primary');
+                        
+                        // Show example notification
+                        new Notification('Notifications Enabled', {
+                            body: 'You will now receive browser notifications for important updates.',
+                            icon: '/favicon.ico'
+                        });
+                    }
+                });
+            }
+        });
+        
+        // Save notification settings
+        document.getElementById('saveNotificationsBtn').addEventListener('click', async () => {
+            const emailNotifications = document.getElementById('emailNotifications').checked;
+            const emailAssignmentReminders = document.getElementById('emailAssignmentReminders').checked;
+            const emailCourseAnnouncements = document.getElementById('emailCourseAnnouncements').checked;
+            const emailDiscussionReplies = document.getElementById('emailDiscussionReplies').checked;
+            
+            try {
+                await userService.updateEmailSettings({
+                    emailNotifications,
+                    emailAssignmentReminders,
+                    emailCourseAnnouncements,
+                    emailDiscussionReplies
+                });
+                
+                showToast('Notification settings updated successfully!');
+            } catch (error) {
+                console.error('Error updating notification settings:', error);
+                showToast('Failed to update notification settings', 'error');
+            }
+        });
+        
+        // Change password button
+        document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showToast('All password fields are required', 'error');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                showToast('New passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 8) {
+                showToast('Password must be at least 8 characters long', 'error');
+                return;
+            }
+            
+            try {
+                await userService.updatePassword({
+                    currentPassword,
+                    newPassword,
+                    confirmPassword
+                });
+                
+                // Clear password fields
+                document.getElementById('currentPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+                
+                showToast('Password changed successfully!');
+            } catch (error) {
+                console.error('Error changing password:', error);
+                showToast(error.message || 'Failed to change password', 'error');
+            }
+        });
+        
+        // View sessions button
+        document.getElementById('viewSessionsBtn').addEventListener('click', () => {
+            showSessionsModal();
+        });
+        
+        // Delete account button
+        document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+            showDeleteAccountModal();
+        });
+        
+        // Text size slider
+        const textSizeRange = document.getElementById('textSizeRange');
+        const textSizePreview = document.getElementById('textSizePreview');
+        
+        textSizeRange.addEventListener('input', () => {
+            const size = textSizeRange.value;
+            textSizePreview.style.fontSize = `${size}%`;
+        });
+        
+        // Save accessibility settings
+        document.getElementById('saveAccessibilityBtn').addEventListener('click', () => {
+            const textSize = document.getElementById('textSizeRange').value;
+            const reduceMotion = document.getElementById('reduceMotion').checked;
+            const highContrast = document.getElementById('highContrast').checked;
+            const dyslexicFont = document.getElementById('dyslexicFont').checked;
+            
+            // Save settings to localStorage
+            localStorage.setItem('textSize', textSize);
+            localStorage.setItem('reduceMotion', reduceMotion);
+            localStorage.setItem('highContrast', highContrast);
+            localStorage.setItem('dyslexicFont', dyslexicFont);
+            
+            // Apply settings
+            document.documentElement.style.fontSize = `${textSize}%`;
+            
+            if (reduceMotion) {
+                document.documentElement.classList.add('reduce-motion');
+            } else {
+                document.documentElement.classList.remove('reduce-motion');
+            }
+            
+            if (highContrast) {
+                document.documentElement.classList.add('high-contrast');
+            } else {
+                document.documentElement.classList.remove('high-contrast');
+            }
+            
+            if (dyslexicFont) {
+                document.documentElement.classList.add('dyslexic-font');
+                // Load dyslexic font if not already loaded
+                if (!document.getElementById('dyslexicFontStylesheet')) {
+                    const link = document.createElement('link');
+                    link.id = 'dyslexicFontStylesheet';
+                    link.rel = 'stylesheet';
+                    link.href = 'https://cdn.jsdelivr.net/npm/opendyslexic@1.0.3/dist/opendyslexic/opendyslexic.css';
+                    document.head.appendChild(link);
+                }
+            } else {
+                document.documentElement.classList.remove('dyslexic-font');
+            }
+            
+            showToast('Accessibility settings updated successfully!');
+        });
         
     } catch (error) {
         console.error('Error loading settings:', error);
@@ -7162,195 +7773,6 @@ async function loadSettings() {
                 <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadSettings()">Retry</button>
             </div>
         `;
-    }
-}
-
-// Setup event listeners for settings page
-function setupSettingsEventListeners() {
-    // Navigation between settings sections
-    const navLinks = document.querySelectorAll('.settings-nav-link');
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const section = e.target.dataset.section;
-            
-            // Hide all sections
-            document.querySelectorAll('.settings-section').forEach(s => s.classList.add('hidden'));
-            
-            // Show selected section
-            document.getElementById(`${section}-section`).classList.remove('hidden');
-            
-            // Update active nav link
-            navLinks.forEach(l => {
-                l.classList.remove('text-primary', 'dark:text-primaryLight', 'bg-white', 'dark:bg-gray-700');
-                l.classList.add('text-gray-700', 'dark:text-gray-300');
-            });
-            e.target.classList.remove('text-gray-700', 'dark:text-gray-300');
-            e.target.classList.add('text-primary', 'dark:text-primaryLight', 'bg-white', 'dark:bg-gray-700');
-        });
-    });
-    
-    // Account form submission
-    const accountForm = document.getElementById('accountForm');
-    if (accountForm) {
-        accountForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const userData = {
-                firstName: document.getElementById('firstName').value,
-                lastName: document.getElementById('lastName').value,
-                email: document.getElementById('email').value,
-                major: document.getElementById('major').value,
-                bio: document.getElementById('bio').value
-            };
-            
-            const errorDiv = document.getElementById('accountError');
-            
-            try {
-                errorDiv.classList.add('hidden');
-                await userService.updateProfile(userData);
-                
-                // Update the current user object with new data
-                await authService.getCurrentUser();
-                
-                showToast('Profile updated successfully!');
-                
-                // Update the UI
-                updateUserInfo();
-            } catch (error) {
-                errorDiv.textContent = error.message;
-                errorDiv.classList.remove('hidden');
-            }
-        });
-    }
-    
-    // Cancel account button
-    const cancelAccountBtn = document.getElementById('cancelAccountBtn');
-    if (cancelAccountBtn) {
-        cancelAccountBtn.addEventListener('click', () => {
-            loadSettings(); // Reload the settings page
-        });
-    }
-    
-    // Password form submission
-    const passwordForm = document.getElementById('passwordForm');
-    if (passwordForm) {
-        passwordForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const currentPassword = document.getElementById('currentPassword').value;
-            const newPassword = document.getElementById('newPassword').value;
-            const confirmPassword = document.getElementById('confirmPassword').value;
-            const errorDiv = document.getElementById('passwordError');
-            
-            // Check if passwords match
-            if (newPassword !== confirmPassword) {
-                errorDiv.textContent = 'New passwords do not match';
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-            
-            try {
-                errorDiv.classList.add('hidden');
-                
-                await userService.updatePassword({
-                    currentPassword,
-                    password: newPassword,
-                    passwordConfirm: confirmPassword
-                });
-                
-                showToast('Password updated successfully!');
-                
-                // Clear the form
-                document.getElementById('currentPassword').value = '';
-                document.getElementById('newPassword').value = '';
-                document.getElementById('confirmPassword').value = '';
-            } catch (error) {
-                errorDiv.textContent = error.message;
-                errorDiv.classList.remove('hidden');
-            }
-        });
-    }
-    
-    // Cancel password button
-    const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
-    if (cancelPasswordBtn) {
-        cancelPasswordBtn.addEventListener('click', () => {
-            document.getElementById('currentPassword').value = '';
-            document.getElementById('newPassword').value = '';
-            document.getElementById('confirmPassword').value = '';
-            document.getElementById('passwordError').classList.add('hidden');
-        });
-    }
-    
-    // Theme buttons
-    const lightThemeBtn = document.getElementById('lightThemeBtn');
-    const darkThemeBtn = document.getElementById('darkThemeBtn');
-    const systemThemeBtn = document.getElementById('systemThemeBtn');
-    
-    if (lightThemeBtn) {
-        lightThemeBtn.addEventListener('click', () => {
-            document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-            updateThemeButtons();
-            showToast('Light theme applied');
-        });
-    }
-    
-    if (darkThemeBtn) {
-        darkThemeBtn.addEventListener('click', () => {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-            updateThemeButtons();
-            showToast('Dark theme applied');
-        });
-    }
-    
-    if (systemThemeBtn) {
-        systemThemeBtn.addEventListener('click', () => {
-            localStorage.removeItem('theme');
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-            updateThemeButtons();
-            showToast('System theme preference applied');
-        });
-    }
-    
-    // Change photo button
-    const changePhotoBtn = document.getElementById('changePhotoBtn');
-    if (changePhotoBtn) {
-        changePhotoBtn.addEventListener('click', () => {
-            // In a real app, this would open a file picker
-            // For now, we'll just show a toast message
-            showToast('Profile picture upload functionality will be implemented soon', 'info');
-        });
-    }
-    
-    // Toggle switches for notifications
-    document.querySelectorAll('.switch input').forEach(switchInput => {
-        switchInput.addEventListener('change', (e) => {
-            const setting = e.target.closest('.flex').querySelector('p.font-medium').textContent;
-            const status = e.target.checked ? 'enabled' : 'disabled';
-            showToast(`${setting} notifications ${status}`);
-        });
-    });
-    
-    // Helper function to update theme buttons state
-    function updateThemeButtons() {
-        const isDark = document.documentElement.classList.contains('dark');
-        
-        if (lightThemeBtn) {
-            lightThemeBtn.disabled = !isDark;
-            lightThemeBtn.classList.toggle('opacity-50', !isDark);
-        }
-        
-        if (darkThemeBtn) {
-            darkThemeBtn.disabled = isDark;
-            darkThemeBtn.classList.toggle('opacity-50', isDark);
-        }
     }
 }
 

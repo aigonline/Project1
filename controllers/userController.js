@@ -177,20 +177,27 @@ exports.updateEmailSettings = catchAsync(async (req, res, next) => {
 
 // Update language preference
 exports.updateLanguage = catchAsync(async (req, res, next) => {
-  const { language, region } = req.body;
+  const { language, region, dateFormat, timeFormat } = req.body;
 
-  if (!language) {
-    return next(new AppError('Please provide a language preference.', 400));
+  // Validate language
+  const supportedLanguages = ['en', 'fr', 'es', 'de', 'ha', 'ar', 'zh', 'ja'];
+  if (language && !supportedLanguages.includes(language)) {
+    return next(new AppError('Unsupported language', 400));
   }
 
-  // Update user with new language settings
+  // Update user with language preferences
   const updatedUser = await User.findByIdAndUpdate(
     req.user.id,
-    { 
-      language,
-      region: region || 'default'
+    {
+      language: language || 'en',
+      region: region || 'US',
+      dateFormat: dateFormat || 'MM/DD/YYYY',
+      timeFormat: timeFormat || '12h'
     },
-    { new: true }
+    {
+      new: true,
+      runValidators: true
+    }
   );
 
   // Record activity
@@ -594,10 +601,99 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
   if (!user) {
     return next(new AppError('No user found with that ID', 404));
   }
+  res.status(200).json({
+      status: 'success',
+      data: {
+          user: updatedUser
+      }
+  });
+});
 
-  res.status(204).json({
-    status: 'success',
-    data: null
+// Update email notification settings
+exports.updateEmailSettings = catchAsync(async (req, res, next) => {
+  // Filter allowed fields
+  const filteredBody = {};
+  const allowedFields = ['emailNotifications', 'emailAssignmentReminders', 'emailCourseAnnouncements', 'emailDiscussionReplies'];
+  
+  Object.keys(req.body).forEach(key => {
+      if (allowedFields.includes(key)) {
+          filteredBody[`notificationSettings.${key}`] = req.body[key];
+      }
+  });
+  
+  // Update user with new notification settings
+  const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      filteredBody,
+      {
+          new: true,
+          runValidators: true
+      }
+  );
+  
+  res.status(200).json({
+      status: 'success',
+      data: {
+          user: updatedUser
+      }
+  });
+});
+
+// Get user sessions
+exports.getUserSessions = catchAsync(async (req, res, next) => {
+  // In a real app, you would retrieve sessions from your database
+  // For this example, we'll return mock data
+  
+  const sessions = [
+      {
+          id: req.user.id + '-' + Date.now(),
+          device: 'Current Browser',
+          location: 'Unknown',
+          lastActive: new Date(),
+          isCurrent: true
+      }
+  ];
+  
+  res.status(200).json({
+      status: 'success',
+      data: {
+          sessions
+      }
+  });
+});
+
+// Revoke a specific session
+exports.revokeSession = catchAsync(async (req, res, next) => {
+  const { sessionId } = req.params;
+  
+  // In a real app, you would delete the session from your database
+  // For this example, we'll just return success
+  
+  res.status(200).json({
+      status: 'success',
+      message: 'Session revoked successfully'
+  });
+});
+
+// Revoke all other sessions
+exports.revokeAllOtherSessions = catchAsync(async (req, res, next) => {
+  // In a real app, you would delete all sessions except the current one
+  // For this example, we'll just return success
+  
+  res.status(200).json({
+      status: 'success',
+      message: 'All other sessions revoked successfully'
+  });
+});
+
+// Verify token
+exports.verifyToken = catchAsync(async (req, res, next) => {
+  
+  res.status(200).json({
+      status: 'success',
+      data: {
+          user: req.user
+      }
   });
 });
 

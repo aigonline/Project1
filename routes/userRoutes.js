@@ -26,7 +26,7 @@ router.get('/me/activity', auth.protect, userController.getUserActivity);
 router.get('/me/activity/history', auth.protect, userController.getActivityHistory);
 router.get('/me/performance', auth.protect, userController.getStudentPerformance);
 router.get('/me/teaching', auth.protect, userController.getInstructorStats);
-
+router.post('/verifyToken', userController.verifyToken);
 // Avatar upload route
 router.patch(
     '/updateAvatar',
@@ -37,7 +37,7 @@ router.patch(
 
 // Email and notification settings
 router.patch('/updateEmailSettings', userController.updateEmailSettings);
-router.patch('/updateLanguage', userController.updateLanguage);
+router.patch('/updateLanguage', auth.protect, userController.updateLanguage);
 
 // Restrict access to admin-only routes
 router.use(auth.restrictTo('instructor', 'admin'));
