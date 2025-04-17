@@ -327,6 +327,7 @@ function loadView(view, params = {}) {
     currentView = view;
     showLoading();
 
+    // Create a promise for view loading
     const viewPromise = new Promise((resolve, reject) => {
         setTimeout(() => {
             content.classList.remove('fade-in');
@@ -353,7 +354,7 @@ function loadView(view, params = {}) {
                     loadAssignments().then(resolve).catch(reject); // ✅ Load user-specific assignments
                     break;
                 case 'discussions':
-                    loadDiscussions().then(resolve).catch(reject); // ✅ Load user-specific discussions
+                    loadDiscussions().then(resolve).catch(reject); 
                     break;
                 case 'discussion-detail':
                 if (!params.discussionId) {
@@ -387,6 +388,19 @@ function loadView(view, params = {}) {
                 default:
                     loadDashboard().then(resolve).catch(reject);
             }
+
+            // After loading the view, apply translations if Hausa is selected
+            const savedLanguage = localStorage.getItem('language');
+            if (savedLanguage === 'ha') {
+                setTimeout(applyHausaTranslations, 100);
+            }
+            // For non-Hausa language, just reset to English
+            else {
+                localStorage.removeItem('language');
+                document.documentElement.setAttribute('lang', 'en');
+                 // Force page reload to reset all text
+            }
+            resolve();
         }, 300);
     });
 
@@ -406,11 +420,12 @@ function loadView(view, params = {}) {
                 </button>
             `;
         });
+
+    return viewPromise;
 }
 // Modal functions
 
 // Show enrollment key modal
-// Show enrollment modal for 
 function showEnrollmentModal(course) {
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2036,6 +2051,30 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
+
+    // Apply translations whenever a new view is loaded
+    const savedLanguage = localStorage.getItem('language');
+    if (savedLanguage === 'ha') {
+        // Initial translation on page load
+        applyHausaTranslations();
+
+        // Add translation call after loading any view
+        const originalLoadView = window.loadView;
+        window.loadView = function(view, params = {}) {
+            const result = originalLoadView(view, params);
+            // Check if loadView returns a promise
+            if (result && typeof result.then === 'function') {
+                result.then(() => {
+                    // Apply translations after view content is loaded
+                    setTimeout(applyHausaTranslations, 100);
+                });
+            } else {
+                // If not a promise, apply translations after a short delay
+                setTimeout(applyHausaTranslations, 100);
+            }
+            return result;
+        };
+    }
 });
 
 async function togglePinResource(id) {
@@ -2055,31 +2094,77 @@ async function togglePinResource(id) {
 const hausaTranslations = {
     // Navigation
     'Dashboard': 'Dashbod',
-    'Courses': 'Darussan',
-    'Assignments': 'Ayyukan',
+    'Courses': 'Darussa',
+    'Assignments': 'Ayyuka Na',
     'Discussions': 'Tattaunawa',
-    'Resources': 'Kayayyakin',
-    'Profile': 'Bayani',
-    'Settings': 'Saituna',
+    'Resources': 'Kayyayakin Aiki',
+    'Announcements': 'Sanarwa',
+    'Profile': 'Frofayil',
+    'Settings': 'Saiti',
     'Logout': 'Fita',
-    
+    //Calendar
+    'Today': 'Yau',
+    'Tomorrow': 'Gobe',
+    'This Week': 'Wannan Mako',
+    'Next Week': 'Mako Mai Zuwa',
+    'This Month': 'Wannan Watan',
+    'Next Month': 'Watan Mai Zuwa',
+    'April 2025': 'Afrilu 2025',
     // General UI
+    'Main': 'Mafi Amfani:',
+    'Home': 'Gida',
     'Save': 'Ajiye',
+    'Update': 'Sabunta',
+    'Create': 'Kirkiri',
+    'Information': 'Bayani Mai Mahimmanci',
+    'Comments ': 'Ra\'ayi',
+    'Comment': 'Ra\'ayi',
+    'Details': 'Cikakkun Bayanan',
+    'Description': 'Bayani',
+    'Title': 'Suna',
+    'Date': 'Rana',
+    'File': 'Fayil',
+    'Welcome back,': 'Barka da dawowa,',
     'Cancel': 'Soke',
     'Delete': 'Share',
     'Edit': 'Gyara',
     'View': 'Duba',
     'Search': 'Bincika',
-    'Loading': 'Ana lodi...',
+    'Loading': 'lodi...',
     'Submit': 'Tura',
     'Back': 'Koma',
     'Next': 'Na gaba',
     'Previous': 'Na baya',
     'Close': 'Rufe',
-    
+
+    //Dashboard elements
+    'Upcoming Assignments': 'Ayyukan da ke tafe',
+    'Explore more courses': 'Duba Duka darussa',
+    'View All': 'Duba Duka',
+    'You\'re all caught up!': 'Ka kammala dukkan ayyuka!',
+    'No upcoming discussions': 'Babu tattaunawa',
+    'No upcoming assignments due.': 'Babu ayyuka masu zuwa.',
+    'No upcoming announcements': 'Babu sanarwa masu zuwa.',
+    'Calendar': 'Kalanda',
+    'View Calendar': 'Duba Kalanda',
+    'No courses available': 'Babu darussa da ake da su',
+    'No discussions available': 'Babu tattaunawa da ake da su',
+    'No resources available': 'Babu kayan aiki',
+    'No announcements available': 'Babu sanarwa ',
+    'No assignments available': 'Babu ayyuka',
+    'Recent Discussions':'Tattaunawa na Kwanan nan',
+    'Recent Announcements': 'Sanarwa na Kwanan nan',
+
     // Course related
-    'My Courses': 'Darussan Na',
-    'Available Courses': 'Darussan da Aka Samu',
+    'My Courses': 'Darussa Na',
+    'All Courses': 'Duka Darussa',
+    'Course Name': 'Sunan Darasi',
+    'Course Description': 'Bayanin Darasi',
+    'Course Duration': 'Tsawon Darasi',
+    'students': 'dalibai',
+    'Course Start Date': 'Ranar Fara Darasi',
+    'Search courses...': 'Bincika Darussa...',
+    'Available Courses': 'Darussa da Ba\'yi Rajista ba',
     'Enroll': 'Yi Rajista',
     'Course Code': 'Lambar Darasin',
     'Instructor': 'Malami',
@@ -2087,12 +2172,65 @@ const hausaTranslations = {
     'Create Course': 'Kirkiri Darasin',
     'Join Course': 'Shiga Darasin',
     'Course Details': 'Bayanin Darasin',
-    
+    'Course Information': 'Bayanin Darasi',
+    'View Course Details': 'Duba Cikakken Bayanan Darasi',
+
+    //Resource related
+    'Upload Resource': 'Loda Kayan Aiki',
+    'Resource Title': 'Sunan Kayan Aiki',
+    'Resource Description': 'Bayanin Kayan Aiki',
+    'Resource Type': 'Nau\'in Kayan Aiki',
+    'File Upload': 'Loda Fayil',
+    'Filter Resources': 'Tace Kayyayakin Aiki',
+    'Search resources...': 'Bincika Kayyayakin Aiki...',
+    'All Resources': 'Duk Kayan Aiki',
+    'Lecture Materials': 'Kayan Koyarwa',
+    'Reading Materials': 'Kayan Karatu',
+    'Practice Exercises': 'kayan Aikin Fractice',
+    'Text Content': 'Abun ciki na rubutu',
+    'Assignment Materials': 'Kayan Aikin Aikin Gida',
+    'Reference Materials': 'Kayan Bayanin Aiki',
+    'Other': 'Sauransu',
+    'Resource Category': 'Rukuni na Kayan Aiki',
+    'Resource Visibility': 'Bayyanar Kayan Aiki',
+    'Visible to Students': 'Bayyana ga Dalibai',
+    'Hidden from Students': 'Boye daga Dalibai',
+    'Resource Link': 'Hanyar Kayan Aiki',
+    'External URL': 'Hanyar Waje',
+    'Resource Content': 'Abun ciki na Kayan Aiki',
+    'Files': 'Fayiloli',
+    'Links': 'addreshi',
+    'Text': 'Rubutu',
+    'Back to Resources': 'Koma zuwa Kayyayakin Aiki Na',
+    'Sort By ': 'Tace ta',
+    'Recently Added': 'Sabon Shigowa',
+    'Most Popular': 'Wanda Aka fi kalla',
+    'Pinned': 'An Manna',
+    'Most Liked':' Wanda Aka fi So',
+    'Most Downloaded': 'Wanda Aka fi Downloadi',
+    'Most Viewed': 'Wanda Aka fi Dubawa',
+    'Title (A-Z)': 'Suna (A-Z)',
+    'Related Resources':'Kayan Aiki Masu Alaka',
+    'Related resources will appear here automatically.': 'Kayan aiki masu alaka zasu bayyana anan kai tsaye.',
+    'Download': 'Yi Downloadi',
+    'No comments yet. Be the first to comment!': 'Babu ra\'ayi tukuna. Kasance na farko da ya yi bada ra\'ayi!',
+    'File Size': 'Girman Fayil',
+    'File Type': 'Nau\'in Fayil',
+    'View Details': 'Duba Cikakken Bayani',
+    'Resource Actions': 'Abbubuwan Yi Da Kayan Aiki',
+    'Share Resource': 'Tura Kayan Aiki',
+    'Pin Resource': 'Manna Kayan Aiki',
+    'View Course': 'Duba Darasi',
+    'Resource Details': 'Bayanin Kayan Aiki',
+    'Download File': 'Yi Downlodin Fayil',
+    'Add your comment...': 'Saka ra\'ayinka anan...',
+    'Post Comment':'Tura Ra\'ayin',
+
     // Assignment related
     'Due Date': 'Kwanan Lokaci',
     'Submission': 'Aiken',
-    'Grade': 'Daraja',
-    'Points': 'Alamomi',
+    'Grade': 'Maki',
+    'Points': 'Maki Na Ci',
     'Late Submission': 'Aiken Makura',
     'On Time': 'A Lokaci',
     'Graded': 'An Kiyasta',
@@ -2117,20 +2255,43 @@ const hausaTranslations = {
     'Theme': 'Jigo',
     'Light Mode': 'Farin Yanayi',
     'Dark Mode': 'Bakin Yanayi',
-    'Notifications': 'Sanerwa',
+    'Notifications': 'Sanarwa',
+    'Email Notifications': 'Sanarwar Imel',
+    'Push Notifications': 'Sanarwar Tura',
+    'Privacy': 'Sirri',
+    'Select your preferred language for the interface.': 'Zaɓi yaren da kake so a wannan shafin.',
+    'Select your preferred theme': 'Zaɓi jigon da kake so',
+    'Customize your experience':'Gyara saituttukan Ka',
+    'Manage your account settings':'Gudanar da saitunan asusunka',
+    'Manage your privacy settings':'Gudanar da saitunan sirrinka',
+    'General': 'Komai da Komai',
+    'Appearance': 'Kama',
     'Security': 'Tsaro',
-    'Accessibility': 'Samuwa',
+    'Accessibility': 'Kananan Gyara-Gyare',
     
     // Messages
     'Successfully saved': 'An yi nasarar ajiye',
     'Changes applied': 'An yi canji',
-    'An error occurred': 'Kuskure ya faru',
+    'An error occurred': 'An Samu Kuskure',
+    'Resource not found': 'Ba a sami kaya ba',
     'Please try again': 'Da fatan a sake gwadawa',
     'Are you sure?': 'Kana tabbata?',
     'This action cannot be undone': 'Ba za\'a iya janye wannan aiki ba',
     
     // Settings sections
     'General Settings': 'Saitunan Gaba Ɗaya',
+    'Account Settings': 'Saitunan Acount',
+    'Account Information': 'Bayanin Acount',
+    'Basic information about your account.': 'Bayanai akan acount',
+    'Email Address': 'Adireshin Imel',
+    'Change Email': 'Canza Imel',
+    'Bio': 'Takaittacen Bayani',
+    'Brief description about yourself that will be visible on your profile.': 'Takaitaccen bayani akan mutum wanda zai bayyana profile.',
+    'Profile Visibility': 'Bayyanar Profile',
+    'Who can see your profile?': 'Wa zai iya ganin profile din mutum?',
+    'Upload a profile picture to personalize your account.': 'Loda hoto don bambanta acount.',
+    'Change Picture':'Chanza Hoto',
+    'Save Changes': 'Ajiye Canje-canje',
     'Appearance Settings': 'Saitunan Kama',
     'Language Settings': 'Saitunan Yare',
     'Notification Settings': 'Saitunan Sanerwa',
@@ -2222,7 +2383,23 @@ function resetToDefaultLanguage() {
 function initializeLanguage() {
     const savedLanguage = localStorage.getItem('language');
     if (savedLanguage === 'ha') {
+        // Apply translations immediately
         applyHausaTranslations();
+        
+        // Add mutation observer to handle dynamically added content
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.addedNodes.length) {
+                    applyHausaTranslations();
+                }
+            });
+        });
+
+        // Start observing the content div for changes
+        observer.observe(document.getElementById('content'), {
+            childList: true,
+            subtree: true
+        });
     }
 }
 
@@ -2485,6 +2662,25 @@ function showDeleteAccountModal() {
             errorDiv.classList.remove('hidden');
         }
     });
+}
+  
+/**
+ * Toggle language between Hausa and English
+ * @param {string} language - The language to switch to ('ha' for Hausa, 'en' for English)
+ */
+function toggleLanguage(language) {
+    if (language === 'ha') {
+        localStorage.setItem('language', 'ha');
+        applyHausaTranslations();
+    } else {
+        localStorage.removeItem('language');
+        window.location.reload(); // Reload to reset to English
+    }
+    
+    // Reload current view to apply changes
+    if (currentView) {
+        loadView(currentView);
+    }
 }
 
 

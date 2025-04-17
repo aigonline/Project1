@@ -36,7 +36,7 @@ router.patch(
 );
 
 // Email and notification settings
-router.patch('/updateEmailSettings', userController.updateEmailSettings);
+router.patch('/updateEmailSettings', auth.protect, userController.updateEmailSettings);
 router.patch('/updateLanguage', auth.protect, userController.updateLanguage);
 
 // Restrict access to admin-only routes
