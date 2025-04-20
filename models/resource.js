@@ -40,11 +40,11 @@ const resourceSchema = new mongoose.Schema(
     type: {
       type: String,
       required: [true, 'Resource type is required'],
-      enum: ['file', 'link', 'text'],
+      enum: ['file', 'link', 'text', 'video', 'audio', 'other'],
     },
     category: {
       type: String,
-      enum: ['lecture', 'reading', 'exercise', 'assignment', 'reference', 'other'],
+      enum: ['lecture', 'reading', 'exercise', 'assignment', 'tutorial', 'other'],
       default: 'other'
     },
     file: {

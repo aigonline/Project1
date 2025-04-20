@@ -1127,6 +1127,13 @@ async function loadCourseDetail(courseId) {
                         <span class="text-gray-600 dark:text-gray-300">
                             <i class="fas fa-users mr-1"></i> ${course.students ? course.students.length : 0} students
                         </span>
+                         ${isInstructor && course.students && course.students.length > 0 ? `
+                        <span class="text-gray-500 dark:text-gray-400">•</span>
+                        <span class="text-gray-600 dark:text-gray-300">
+                            <button id="viewStudentsBtn" class="text-primary dark:text-primaryLight text-sm font-medium mt-1">
+                                <i class="fas fa-users mr-1"></i> Manage Students
+                            </button>
+                        ` : ''}
                     </div>
                     
                     <p class="text-gray-600 dark:text-gray-300 mb-4">${course.description || 'No course description provided.'}</p>
@@ -3108,7 +3115,7 @@ async function loadResources(courseId = null) {
             { id: 'reading', name: 'Reading Materials' },
             { id: 'exercise', name: 'Practice Exercises' },
             { id: 'assignment', name: 'Assignment Materials' },
-            { id: 'reference', name: 'Reference Materials' },
+            { id: 'tutorial', name: 'Tutorial Videos' },
             { id: 'other', name: 'Other Resources' }
         ];
         
@@ -3524,7 +3531,7 @@ function getCategoryLabel(category) {
         'reading': 'Reading Materials',
         'exercise': 'Practice Exercises',
         'assignment': 'Assignment Materials',
-        'reference': 'Reference Materials',
+        'tutorial': 'Tutorial Videos',
         'other': 'Other Resources'
     };
     

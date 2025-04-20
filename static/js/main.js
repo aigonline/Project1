@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
             processCourseJoinLink(joinToken);
         }, 1000);
     }
+    
 });
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = '/login';
     }
   });
+ 
+        // Remove the item from localStorage to prevent repeated messages
 // Function to process a course join link
 async function processCourseJoinLink(token) {
     try {
@@ -389,17 +392,6 @@ function loadView(view, params = {}) {
                     loadDashboard().then(resolve).catch(reject);
             }
 
-            // After loading the view, apply translations if Hausa is selected
-            const savedLanguage = localStorage.getItem('language');
-            if (savedLanguage === 'ha') {
-                setTimeout(applyHausaTranslations, 100);
-            }
-            // For non-Hausa language, just reset to English
-            else {
-                localStorage.removeItem('language');
-                document.documentElement.setAttribute('lang', 'en');
-                 // Force page reload to reset all text
-            }
             resolve();
         }, 300);
     });
@@ -1406,7 +1398,7 @@ async function showUploadResourceModal(courseId) {
                                     <option value="reading">Reading Materials</option>
                                     <option value="exercise">Practice Exercises</option>
                                     <option value="assignment">Assignment Materials</option>
-                                    <option value="reference">Reference Materials</option>
+                                    <option value="tutorial">Tutorial Videos</option>
                                     <option value="other">Other</option>
                                 </select>
                             </div>
@@ -1703,7 +1695,7 @@ async function showEditResourceModal(resourceId) {
                                     <option value="reading" ${resource.category === 'reading' ? 'selected' : ''}>Reading Materials</option>
                                     <option value="exercise" ${resource.category === 'exercise' ? 'selected' : ''}>Practice Exercises</option>
                                     <option value="assignment" ${resource.category === 'assignment' ? 'selected' : ''}>Assignment Materials</option>
-                                    <option value="reference" ${resource.category === 'reference' ? 'selected' : ''}>Reference Materials</option>
+                                    <option value="tutorial" ${resource.category === 'tutorial' ? 'selected' : ''}>Tutorial Videos</option>
                                     <option value="other" ${resource.category === 'other' ? 'selected' : ''}>Other</option>
                                 </select>
                             </div>
@@ -2189,7 +2181,7 @@ const hausaTranslations = {
     'Practice Exercises': 'kayan Aikin Fractice',
     'Text Content': 'Abun ciki na rubutu',
     'Assignment Materials': 'Kayan Aikin Aikin Gida',
-    'Reference Materials': 'Kayan Bayanin Aiki',
+    'Tutorial Videos': 'Bidio na koyarwa',
     'Other': 'Sauransu',
     'Resource Category': 'Rukuni na Kayan Aiki',
     'Resource Visibility': 'Bayyanar Kayan Aiki',
@@ -2312,10 +2304,17 @@ const hausaTranslations = {
  * Apply Hausa translations to the interface
  * This function finds text nodes in the DOM and replaces them with Hausa equivalents
  */
+function applyEnglishTranslations() {
+    // Store the fact that English is the active language
+    localStorage.setItem('language', 'en');
+    
+    // Reload the page to reset all translations
+    window.location.reload();
+}
 function applyHausaTranslations() {
     // Store the fact that Hausa is the active language
     localStorage.setItem('language', 'ha');
-    
+    localStorage.setItem('languageChange', 'true');
     // Walk through text nodes and translate them
     const textNodes = document.createTreeWalker(
         document.body,
@@ -2366,14 +2365,7 @@ function applyHausaTranslations() {
  */
 function resetToDefaultLanguage() {
     localStorage.removeItem('language');
-    document.documentElement.setAttribute('lang', 'en');
-    
-    // The actual text resetting happens on page reload
-    // For a full app, you would implement proper translation infrastructure
-    // Here we'll just reload the current view to simplify
-    if (currentView) {
-        loadView(currentView);
-    }
+    //location.reload(); // Reload the page to reset translations
 }
 
 /**
@@ -2385,7 +2377,6 @@ function initializeLanguage() {
     if (savedLanguage === 'ha') {
         // Apply translations immediately
         applyHausaTranslations();
-        
         // Add mutation observer to handle dynamically added content
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
@@ -2401,8 +2392,17 @@ function initializeLanguage() {
             subtree: true
         });
     }
+    else  {
+        // Default to English if no preference is set
+        resetToDefaultLanguage();
+        localStorage.setItem('languageChange', 'true');
+    }
+ // Reload the page to apply translations
 }
-
+function reloadPage() {
+    location.reload(); // Reload the page to apply translations
+}
+    
 /**
  * Show modal with active user sessions
  */
@@ -2669,18 +2669,16 @@ function showDeleteAccountModal() {
  * @param {string} language - The language to switch to ('ha' for Hausa, 'en' for English)
  */
 function toggleLanguage(language) {
-    if (language === 'ha') {
-        localStorage.setItem('language', 'ha');
-        applyHausaTranslations();
-    } else {
-        localStorage.removeItem('language');
-        window.location.reload(); // Reload to reset to English
-    }
+   const currentPath = window.location.pathname;
+    const currentSearch = window.location.search;
     
-    // Reload current view to apply changes
-    if (currentView) {
-        loadView(currentView);
-    }
+    // Set the language preference
+    localStorage.setItem('language', language);
+    // Set a flag to indicate we're changing languages
+    localStorage.setItem('languageChange', 'true');
+    
+    // Force reload the page
+    window.location.reload();
 }
 
 
