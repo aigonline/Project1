@@ -6655,7 +6655,7 @@ function showEditProfileModal(userData) {
                         <label class="block text-gray-700 dark:text-gray-300 mb-2">Email Address</label>
                         <input type="email" id="email" value="${userData.email}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                     </div>
-                    
+            
                     <div>
                         <label class="block text-gray-700 dark:text-gray-300 mb-2">Bio</label>
                         <textarea id="bio" rows="3" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${userData.bio || ''}</textarea>
@@ -7598,6 +7598,7 @@ async function loadSettings() {
                 }
                 
                 showToast('Language settings updated successfully!');
+                location.reload();
             } catch (error) {
                 console.error('Error updating language settings:', error);
                 showToast('Failed to update language settings', 'error');

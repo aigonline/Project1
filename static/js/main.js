@@ -2148,6 +2148,7 @@ const hausaTranslations = {
     'Recent Announcements': 'Sanarwa na Kwanan nan',
 
     // Course related
+    'Course':'Darasi',
     'My Courses': 'Darussa Na',
     'All Courses': 'Duka Darussa',
     'Course Name': 'Sunan Darasi',
@@ -2166,6 +2167,16 @@ const hausaTranslations = {
     'Course Details': 'Bayanin Darasin',
     'Course Information': 'Bayanin Darasi',
     'View Course Details': 'Duba Cikakken Bayanan Darasi',
+    'Course Settings' : 'Saitin Darasi',
+    'Manage Students': 'Yi Manajin Dalibai',
+    'New Announcement' : 'Sabon Sanarwa',
+    'New Assignment' : 'Loda Sabon Aiki',
+    'New Discussion' : 'Sabon Tattaunawa',
+    'Enrollment Code': 'Lambar Rajista',
+    'Course Link' : 'Linki na Darasi',
+    'Generate Course Link': 'Kirkiri Linkin Darasi',
+    'Students Enrolled' : 'Dalibai da suka yi rajista',
+    'Past Due': 'Lokaci ya wuce',
 
     //Resource related
     'Upload Resource': 'Loda Kayan Aiki',
@@ -2227,12 +2238,22 @@ const hausaTranslations = {
     'On Time': 'A Lokaci',
     'Graded': 'An Kiyasta',
     'Ungraded': 'Ba a Kiyasta ba',
-    
+    'Active Assignments': 'Sabbin Ayyuka',
+    'No upcoming assignments. Enjoy your free time!': 'Babu Ayyuka A Yanzu. A Huta Lafiya!',
+    'Past Due Assignments': 'Ayyuka Dasuka Wuce',
+    'Assignment': 'Aiki',
+    'Submissions': 'AyyukaN Da Aka Tura',
+    'Actions':'Abun Yi',
     // Discussion related
     'Post': 'Rubutu',
     'Reply': 'Amsa',
     'Comments': 'Ra\'ayoyi',
     'Announcements': 'Sanarwa',
+    'Popular Discussions':' Sannanun Tattaunawa',
+    'No popular discussions yet.': 'Babu Sannanun Tattaunawa a yanzu.',
+    'All':'Duka',
+    'Unread':'Wainda Ba\'a Karanta ba',
+    'My Posts': 'Tattaunawa Na',
     
     // Profile and Settings
     'Account': 'Asusun',
@@ -2285,7 +2306,7 @@ const hausaTranslations = {
     'Change Picture':'Chanza Hoto',
     'Save Changes': 'Ajiye Canje-canje',
     'Appearance Settings': 'Saitunan Kama',
-    'Language Settings': 'Saitunan Yare',
+    'Language Settings': 'Saitin Yare',
     'Notification Settings': 'Saitunan Sanerwa',
     'Security Settings': 'Saitunan Tsaro',
     'Accessibility Settings': 'Saitunan Samuwa',
