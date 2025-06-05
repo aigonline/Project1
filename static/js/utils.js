@@ -118,18 +118,28 @@ function generateCalendarDays(events = []) {
 
 // Get profile image URL
 function getProfileImageUrl(user) {
+    if (!user) return  `https://picsum.photos/id/${(user?.firstName?.charCodeAt(0) || 0) % 30 + 1000}/100/100`;
+
     // Check if user has a profile image
-    if (user && user.profilePicture && !user.profilePicture.includes('default')) {
-        // If the profile picture is a URL, use it directly
+    if (user.profilePicture) {
+        // Add timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        
+        // If the profile picture is a full URL, use it directly
         if (user.profilePicture.startsWith('http')) {
-            return user.profilePicture;
+            return `${user.profilePicture}?t=${timestamp}`;
         }
-        // Otherwise, construct the URL from the API
-        return `${API_URL}/uploads/${user.profilePicture}`;
+        // For avatar uploads, ensure we're using the correct path
+        if (user.profilePicture.startsWith('avatar-')) {
+            return `/uploads/profile/${user.profilePicture}?t=${timestamp}`;
+        }
+        
+        // Fallback case: check if the file exists in profile directory
+        return `/uploads/profile/${user.profilePicture}?t=${timestamp}`;
     }
     
-    // Fallback to a default image
-    return `https://picsum.photos/id/${(user?.firstName?.charCodeAt(0) || 0) % 30 + 1000}/100/100`;
+    // Return default profile image if no profile picture is set
+       return `https://picsum.photos/id/${(user?.firstName?.charCodeAt(0) || 0) % 30 + 1000}/100/100`;
 }
 
 // Capitalize first letter

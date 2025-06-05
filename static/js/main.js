@@ -1,3 +1,4 @@
+
 // DOM Elements
 const appContainer = document.getElementById('appContainer');
 const content = document.getElementById('content');
@@ -191,6 +192,7 @@ function initializeAccessibilitySettings() {
 // Check if user is authenticated
 async function checkAuth() {
     // Check if token exists
+    const token = localStorage.getItem('token');
     if (!token) {
         return false;
     }
@@ -220,19 +222,31 @@ function hideUIElements() {
 }
 
 // Update user info in the UI
-function updateUserInfo() {
-    if (currentUser) {
-        // Update sidebar profile
-        document.getElementById('sidebarUserName').textContent = `${currentUser.firstName} ${currentUser.lastName}`;
-        document.getElementById('sidebarUserRole').textContent = capitalizeFirstLetter(currentUser.role);
-        
-        // Update profile images
-        const profileImageUrl = getProfileImageUrl(currentUser);
-        document.getElementById('sidebarProfileImage').src = profileImageUrl;
-        document.getElementById('mobileProfileImage').src = profileImageUrl;
-    }
-}
+function updateUserInfo(userData = window.currentUser) {
+    if (!userData) return;
 
+    const newAvatarUrl = getProfileImageUrl(userData);
+    
+    // Update sidebar profile info
+    const sidebarName = document.getElementById('sidebarUserName');
+    const sidebarRole = document.getElementById('sidebarUserRole');
+    const sidebarImage = document.getElementById('sidebarProfileImage');
+    
+    if (sidebarName) sidebarName.textContent = `${userData.firstName} ${userData.lastName}`;
+    if (sidebarRole) sidebarRole.textContent = capitalizeFirstLetter(userData.role);
+    if (sidebarImage) sidebarImage.src = newAvatarUrl;
+    
+    // Update mobile header image
+    const mobileImage = document.getElementById('mobileProfileImage');
+    if (mobileImage) mobileImage.src = newAvatarUrl;
+    
+    
+    // Force cache refresh
+    const timestamp = new Date().getTime();
+    [sidebarImage, mobileImage].forEach(img => {
+        if (img) img.src = `${img.src}?t=${timestamp}`;
+    });
+}
 // Setup event listeners
 function setupEventListeners() {
     // Navigation links
@@ -2299,6 +2313,7 @@ const hausaTranslations = {
     'Email Address': 'Adireshin Imel',
     'Change Email': 'Canza Imel',
     'Bio': 'Takaittacen Bayani',
+    'Choose how dates and times are displayed.':'Nuna Yanda Lokuta da Kwanan Wata Zasu bayyana.',
     'Brief description about yourself that will be visible on your profile.': 'Takaitaccen bayani akan mutum wanda zai bayyana profile.',
     'Profile Visibility': 'Bayyanar Profile',
     'Who can see your profile?': 'Wa zai iya ganin profile din mutum?',
@@ -2702,4 +2717,75 @@ function toggleLanguage(language) {
     window.location.reload();
 }
 
+// Add to views.js
+function showReportModal(contentType, contentId, contentPreview) {
+  const modalHtml = `
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-semibold">Report Content</h3>
+          <button id="closeReportModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
 
+        <div class="mb-4 p-4 bg-gray-100 dark:bg-gray-700 rounded">
+          <p class="text-sm text-gray-600 dark:text-gray-400">Content Preview:</p>
+          <p class="mt-1">${contentPreview}</p>
+        </div>
+
+        <form id="reportForm" class="space-y-4">
+          <div>
+            <label class="block text-gray-700 dark:text-gray-300 mb-2">Reason for Report</label>
+            <select id="reportReason" required class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800">
+              <option value="">Select a reason...</option>
+              <option value="inappropriate">Inappropriate Content</option>
+              <option value="spam">Spam</option>
+              <option value="harassment">Harassment</option>
+              <option value="misinformation">Misinformation</option>
+              <option value="copyright">Copyright Violation</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-gray-700 dark:text-gray-300 mb-2">Additional Details</label>
+            <textarea id="reportDetails" rows="3" maxlength="500" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800"></textarea>
+          </div>
+
+          <button type="submit" class="w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+            Submit Report
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  const modalContainer = document.createElement('div');
+  modalContainer.innerHTML = modalHtml;
+  document.body.appendChild(modalContainer);
+
+  document.getElementById('closeReportModal').addEventListener('click', () => {
+    document.body.removeChild(modalContainer);
+  });
+
+  document.getElementById('reportForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const reason = document.getElementById('reportReason').value;
+    const details = document.getElementById('reportDetails').value;
+
+    try {
+      await reportService.createReport({
+        contentType,
+        contentId,
+        reason,
+        details
+      });
+
+      showToast('Report submitted successfully', 'success');
+      document.body.removeChild(modalContainer);
+    } catch (error) {
+      showToast(error.message || 'Failed to submit report', 'error');
+    }
+  });
+}

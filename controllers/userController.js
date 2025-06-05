@@ -1,5 +1,4 @@
 // In controllers/userController.js
-
 const User = require('../models/user.js');
 const Activity = require('../models/activity.js');
 const Course = require('../models/course.js');
@@ -15,26 +14,6 @@ const fs = require('fs');
 const path = require('path');
 
 // Configure multer storage for file uploads
-const multerStorage = multer.memoryStorage();
-
-// Filter to ensure only images are uploaded
-const multerFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image')) {
-    cb(null, true);
-  } else {
-    cb(new AppError('Not an image! Please upload only images.', 400), false);
-  }
-};
-
-// Setup multer upload
-const upload = multer({
-  storage: multerStorage,
-  fileFilter: multerFilter,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
-});
-
-// Middleware for uploading user photo
-exports.uploadUserPhoto = upload.single('avatar');
 
 // Resize user photo to standard size
 exports.resizeUserPhoto = catchAsync(async (req, res, next) => {
@@ -108,12 +87,19 @@ exports.updateAvatar = catchAsync(async (req, res, next) => {
     return next(new AppError('Please upload an image file.', 400));
   }
 
-  // Update user with new photo filename
+  // Update user with new photo filename - Changed profileImage to profilePicture
   const user = await User.findByIdAndUpdate(
     req.user.id,
-    { profileImage: `/uploads/users/${req.file.filename}` },
-    { new: true }
+    { profilePicture: req.file.filename }, // Just use filename, not full path
+    { 
+      new: true,
+      runValidators: true 
+    }
   );
+
+  if (!user) {
+    return next(new AppError('Error updating profile picture', 400));
+  }
 
   // Record activity
   recordActivity(

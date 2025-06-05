@@ -208,3 +208,6 @@ input:checked + .toggle-bg:after {
 .dyslexic-font * {
     font-family: 'OpenDyslexic', sans-serif !important;
 }
+img[src*="profilePicture"] {
+    transition: all 0.3s ease-in-out;
+}

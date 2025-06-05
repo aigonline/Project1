@@ -18,6 +18,7 @@ const resourceRoutes = require("./routes/resourceRoutes.js");
 const discussionRoutes = require("./routes/discussionRoutes.js");
 const announcementRoutes = require("./routes/announcementRoutes.js");
 const courseLinkRoutes = require("./routes/courseLinkRoutes.js");
+const reportRoutes = require("./routes/reportRoutes.js");
 
 const app = express();
 
@@ -37,8 +38,8 @@ app.use(
             scriptSrc: ["'self'", "https://cdn.tailwindcss.com", "https://cdn.jsdelivr.net", "'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
             scriptSrcAttr: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:", "https://picsum.photos", "https://fastly.picsum.photos"],
-            connectSrc: ["'self'", "http://localhost:5000"],
+            imgSrc: ["'self'", "data:", "http://localhost:5000/uploads", "https://picsum.photos", "https://fastly.picsum.photos"],
+            connectSrc: ["'self'", "http://localhost:5000", "http://127.0.0.1:5500"],
             fontSrc: ["'self'", "data:", "https://cdnjs.cloudflare.com"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"]
@@ -53,7 +54,7 @@ if (process.env.NODE_ENV === "development") {
 
 // ✅ Rate limiting (prevents abuse)
 const limiter = rateLimit({
-  max: 100, 
+  max: 1000, 
   windowMs: 60 * 60 * 1000, // 1 hour
   standardHeaders: true, // Sends `RateLimit-*` headers
   legacyHeaders: true,  // Disables deprecated `X-RateLimit-*` headers
@@ -67,8 +68,12 @@ app.use(express.json({ limit: "800kb" }));
 app.use(mongoSanitize());
 
 // ✅ Serve static files correctly
+// ✅ Serve static files correctly
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/static", express.static(path.join(__dirname, "static")));
+
+// ✅ Serve uploaded files (add this!)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ✅ Route mounting
 app.use("/api/v1/auth", authRoutes);
@@ -79,15 +84,19 @@ app.use("/api/v1/resources", resourceRoutes);
 app.use("/api/v1/discussions", discussionRoutes);
 app.use("/api/v1/announcements", announcementRoutes);
 app.use("/api/v1", courseLinkRoutes);
+app.use("/api/v1/reports", reportRoutes);
 
 // ✅ Serve frontend (fixes missing pages)
-app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
+
+
+// ✅ Handle unknown API routes
+app.all("/api/*", (req, res, next) => {
+    next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
-// ✅ Handle unknown routes
-app.all("*", (req, res, next) => {
-    next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
+// ✅ Serve frontend for all other non-API, non-static routes
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // ✅ Global error handling

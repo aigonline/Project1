@@ -5,11 +5,11 @@ let currentCourse = null;
 // Login page
 function loadLoginPage() {
     hideUIElements();
-  
+
     content.innerHTML = `
       <div class="min-h-screen flex items-center justify-center p-4">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-md w-full">
-          <h2 class="text-2xl font-bold mb-6 text-center">Log In to EduShare</h2>
+          <h2 class="text-2xl font-bold mb-6 text-center">Log In to Virtual Campus</h2>
           
           <form id="loginForm" class="space-y-6">
             <div>
@@ -40,53 +40,67 @@ function loadLoginPage() {
         </div>
       </div>
     `;
-  
+
     // Add event listener for form submission
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-  
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const errorDiv = document.getElementById('loginError');
-  
-      try {
-        errorDiv.classList.add('hidden');
-        errorDiv.textContent = "";
-  
-        // Log in once and get the user data
-        const result = await authService.login(email, password);
+        e.preventDefault();
 
-        if (!result) {
-            loadLoginPage();
-            
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('loginError');
+
+        try {
+            errorDiv.classList.add('hidden');
+            errorDiv.textContent = "";
+
+            // Log in once and get the user data
+            const result = await authService.login(email, password);
+
+            if (!result) {
+                loadLoginPage();
+
+            }
+
+            // Update UI with user info
+            showUIElements();
+            updateUserInfo();
+
+            // Check for a pending secure join token stored in localStorage
+            const pendingToken = localStorage.getItem('pendingJoinToken');
+            if (pendingToken) {
+                localStorage.removeItem('pendingJoinToken');
+                // joinCourseViaLink should be defined in your secure link service logic
+                await joinCourseViaLink(pendingToken);
+            } else {
+                showToast("Logged in Successfully")
+                loadView('dashboard');
+            }
+        } catch (error) {
+            console.error("Login error:", error);
+
+            // User-friendly error messages
+            let errorMessage = 'An error occurred while logging in.';
+
+            if (error.status === 401) {
+                errorMessage = 'Invalid email or password.';
+            } else if (error.status === 400) {
+                errorMessage = 'Please enter both email and password.';
+            } else if (error.message.includes('NetworkError')) {
+                errorMessage = 'Unable to connect to the server. Please check your internet connection.';
+            }
+
+            errorDiv.textContent = errorMessage;
+            errorDiv.classList.remove('hidden');
+
         }
-  
-        // Update UI with user info
-        showUIElements();
-        updateUserInfo();
-  
-        // Check for a pending secure join token stored in localStorage
-        const pendingToken = localStorage.getItem('pendingJoinToken');
-        if (pendingToken) {
-          localStorage.removeItem('pendingJoinToken');
-          // joinCourseViaLink should be defined in your secure link service logic
-          await joinCourseViaLink(pendingToken);
-        } else {
-          loadView('dashboard');
-        }
-      } catch (error) {
-        console.error("Login error:", error);
-        errorDiv.textContent = error.message;
-        errorDiv.classList.remove('hidden');
-      }
     });
-  }
-  
+}
+
 
 // Signup page
 function loadSignupPage() {
     hideUIElements();
-    
+
     content.innerHTML = `
         <div class="min-h-screen flex items-center justify-center p-4">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 max-w-md w-full">
@@ -145,11 +159,11 @@ function loadSignupPage() {
             </div>
         </div>
     `;
-    
+
     // Add event listener for form submission
     document.getElementById('signupForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const firstName = document.getElementById('firstName').value;
         const lastName = document.getElementById('lastName').value;
         const email = document.getElementById('email').value;
@@ -157,14 +171,14 @@ function loadSignupPage() {
         const password = document.getElementById('password').value;
         const passwordConfirm = document.getElementById('passwordConfirm').value;
         const errorDiv = document.getElementById('signupError');
-        
+
         // Validate passwords match
         if (password !== passwordConfirm) {
             errorDiv.textContent = 'Passwords do not match';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         try {
             errorDiv.classList.add('hidden');
             const result = await authService.signup({
@@ -175,10 +189,11 @@ function loadSignupPage() {
                 password,
                 passwordConfirm
             });
-            
+
             // Update UI with user info
             showUIElements();
             updateUserInfo();
+            showToast("Account Created Successfully");
             loadView('dashboard');
 
         } catch (error) {
@@ -201,294 +216,376 @@ async function loadDashboard() {
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
+
         // Fetch user's courses
         const coursesResponse = await courseService.getMyCourses();
         const courses = coursesResponse.data.courses;
-        
+
         // Initialize arrays for assignments and discussions
         let upcomingAssignments = [];
         let recentDiscussions = [];
-        
+
         // Only proceed if user has courses
         if (courses.length > 0) {
             // Fetch upcoming assignments
             try {
                 const assignmentsResponse = await assignmentService.getAllAssignments();
                 const allAssignments = assignmentsResponse.data.assignments;
-                
-                
+
+
                 upcomingAssignments = allAssignments.filter(assignment => {
                     // Check if assignment belongs to one of user's courses
-                    const courseMatch = courses.some(course => 
+                    const courseMatch = courses.some(course =>
                         (typeof assignment.course === 'object' && assignment.course._id === course._id) ||
                         assignment.course === course._id
                     );
-                    
+
                     // For due date, compare with current date
                     const dueDate = new Date(assignment.dueDate);
                     const now = new Date();
                     const isUpcoming = dueDate > now;
-                    
+
                     // If student, check if already submitted
                     let notSubmitted = true;
                     if (currentUser.role === 'student' && assignment.submissions) {
                         // Check if this student has already submitted
-                        notSubmitted = !assignment.submissions.some(submission => 
-                            (typeof submission.student === 'object' && submission.student._id === currentUser._id) || 
+                        notSubmitted = !assignment.submissions.some(submission =>
+                            (typeof submission.student === 'object' && submission.student._id === currentUser._id) ||
                             submission.student === currentUser._id
                         );
                     }
-                    
+
                     return courseMatch && isUpcoming && (currentUser.role !== 'student' || notSubmitted);
                 });
-                
+
                 // Sort by due date (closest first)
                 upcomingAssignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-                
+
                 // Limit to 5 items
                 upcomingAssignments = upcomingAssignments.slice(0, 5);
             } catch (error) {
                 console.warn('Could not fetch assignments:', error);
             }
-            
+
             // Fetch recent discussions
             try {
                 const discussionsResponse = await discussionService.getAllDiscussions();
                 const allDiscussions = discussionsResponse.data.discussions;
-                
+
                 // Filter discussions that are from user's courses
                 recentDiscussions = allDiscussions.filter(discussion => {
-                    return courses.some(course => 
+                    return courses.some(course =>
                         (typeof discussion.course === 'object' && discussion.course._id === course._id) ||
                         discussion.course === course._id
                     );
                 });
-                
+
                 // Sort by most recent activity
                 recentDiscussions.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-                
+
                 // Limit to 5 items
                 recentDiscussions = recentDiscussions.slice(0, 5);
             } catch (error) {
                 console.warn('Could not fetch discussions:', error);
             }
         }
-       
+        let recentAnnouncements = [];
+
+        try {
+            // You may need to implement this in your announcementService
+            const announcementsResponse = await announcementService.getAllAnnouncements();
+            const allAnnouncements = announcementsResponse.data.announcements;
+
+            // Filter announcements for user's courses
+            recentAnnouncements = allAnnouncements.filter(announcement =>
+                courses.some(course =>
+                    (typeof announcement.course === 'object' && announcement.course._id === course._id) ||
+                    announcement.course === course._id
+                )
+            );
+
+            // Sort by most recent
+            recentAnnouncements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            recentAnnouncements = recentAnnouncements.slice(0, 5);
+        } catch (error) {
+            console.warn('Could not fetch announcements:', error);
+        }
+
+
         // Build dashboard HTML
         content.innerHTML = `
             <div class="mb-6">
-                <h1 class="text-2xl font-bold">Dashboard</h1>
-                <p class="text-gray-600 dark:text-gray-400">Welcome back, ${currentUser.firstName}!</p>
-                <hr class="my-4 border-black-200 dark:border-black-700">
+            <h1 class="text-2xl font-bold">Dashboard</h1>
+            <p class="text-gray-600 dark:text-gray-400">Welcome back, ${currentUser.firstName}!</p>
+            <hr class="my-4 border-black-200 dark:border-black-700">
             </div>
             
             <!-- My Courses Section -->
             <div class="mb-8">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">My Courses</h2>
-                    <a href="#" onclick="event.preventDefault(); loadView('courses');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
-                        View All
-                    </a>
-                </div>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">My Courses</h2>
+                <a href="#" onclick="event.preventDefault(); loadView('courses');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                View All
+                </a>
+            </div>
+            
+            ${courses.length > 0 ? `
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ${courses.slice(0, 6).map(course => `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
+                    <div class="h-20 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}"></div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-lg mb-1">${course.name}</h3>
+                        <div class="flex items-center justify-between">
+                        <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
+                            ${course.code}
+                        </span>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">
+                            ${course.instructor ? `${course.instructor.firstName} ${course.instructor.lastName}` : 'Instructor'}
+                        </span>
+                        </div>
+                    </div>
+                    </div>
+                `).join('')}
                 
-                ${courses.length > 0 ? `
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        ${courses.slice(0, 6).map(course => `
-                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
-                                <div class="h-20 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}"></div>
-                                <div class="p-4">
-                                    <h3 class="font-semibold text-lg mb-1">${course.name}</h3>
-                                    <div class="flex items-center justify-between">
-                                        <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
-                                            ${course.code}
-                                        </span>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">
-                                            ${course.instructor ? `${course.instructor.firstName} ${course.instructor.lastName}` : 'Instructor'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
-                        
-                        ${courses.length > 6 ? `
-                            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex items-center justify-center h-40" onclick="loadView('courses')">
-                                <div class="text-center">
-                                    <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
-                                        <i class="fas fa-ellipsis-h text-gray-500 dark:text-gray-400"></i>
-                                    </div>
-                                    <p class="text-gray-600 dark:text-gray-400">View all ${courses.length} courses</p>
-                                </div>
-                            </div>
-                        ` : ''}
-                        
-                        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex items-center justify-center h-40 border-2 border-dashed border-gray-300 dark:border-gray-700" onclick="loadView('courses')">
-                            <div class="text-center">
-                                <div class="w-12 h-12 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-2">
-                                    <i class="fas fa-plus text-primary dark:text-primaryLight"></i>
-                                </div>
-                                <p class="text-gray-600 dark:text-gray-400">Explore more courses</p>
-                            </div>
+                ${courses.length > 6 ? `
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex items-center justify-center h-40" onclick="loadView('courses')">
+                    <div class="text-center">
+                        <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <i class="fas fa-ellipsis-h text-gray-500 dark:text-gray-400"></i>
                         </div>
+                        <p class="text-gray-600 dark:text-gray-400">View all ${courses.length} courses</p>
                     </div>
-                ` : `
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
-                        <div class="w-16 h-16 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="fas fa-book text-primary dark:text-primaryLight text-2xl"></i>
-                        </div>
-                        <h3 class="font-semibold text-lg mb-2">No Courses Yet</h3>
-                        <p class="text-gray-600 dark:text-gray-400 mb-4">You are not enrolled in any courses yet.</p>
-                        <button onclick="loadView('courses')" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                            Browse Courses
-                        </button>
                     </div>
-                `}
+                ` : ''}
+                
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer flex items-center justify-center h-40 border-2 border-dashed border-gray-300 dark:border-gray-700" onclick="loadView('courses')">
+                    <div class="text-center">
+                    <div class="w-12 h-12 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <i class="fas fa-plus text-primary dark:text-primaryLight"></i>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">Explore more courses</p>
+                    </div>
+                </div>
+                </div>
+            ` : `
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+                <div class="w-16 h-16 bg-primary bg-opacity-10 dark:bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-book text-primary dark:text-primaryLight text-2xl"></i>
+                </div>
+                <h3 class="font-semibold text-lg mb-2">No Courses Yet</h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">You are not enrolled in any courses yet.</p>
+                <button onclick="loadView('courses')" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                    Browse Courses
+                </button>
+                </div>
+            `}
             </div>
             
             <hr class="my-4 border-black-200 dark:border-black-700">
             <!-- Two Column Layout for Assignments and Discussions -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Upcoming Assignments -->
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-semibold">Upcoming Assignments</h2>
-                        <a href="#" onclick="event.preventDefault(); loadView('assignments');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
-                            View All
-                        </a>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-                        ${upcomingAssignments.length > 0 ? `
-                            <div class="space-y-4">
-                                ${upcomingAssignments.map(assignment => {
-                                    const course = assignment.course;
-                                    const courseName = typeof course === 'object' ? course.name : 'Course';
-                                    const courseCode = typeof course === 'object' ? course.code : '';
-                                    const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
-                                    const dueDate = new Date(assignment.dueDate);
-                                    const now = new Date();
-                                    const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
-                                    
-                                    return `
-                                        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer" onclick="showAssignmentModal('${assignment._id}')">
-                                            <div class="flex justify-between items-start">
-                                                <div>
-                                                    <h3 class="font-medium">${assignment.title}</h3>
-                                                    <div class="flex items-center mt-1">
-                                                        <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
-                                                            ${courseCode}
-                                                        </span>
-                                                        <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
-                                                        <span class="text-xs text-gray-500 dark:text-gray-400">${courseName}</span>
-                                                    </div>
-                                                </div>
-                                                <div class="text-right">
-                                                    <div class="font-medium text-sm ${daysLeft <= 1 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}">
-                                                        ${formatDate(assignment.dueDate, true)}
-                                                    </div>
-                                                    <div class="text-xs ${daysLeft <= 1 ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}">
-                                                        ${daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Due tomorrow' : `${daysLeft} days left`}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        ` : `
-                            <div class="text-center py-6">
-                                <div class="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <i class="fas fa-check text-green-500 text-xl"></i>
-                                </div>
-                                <p class="text-gray-600 dark:text-gray-400">You're all caught up!</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">No upcoming assignments due.</p>
-                            </div>
-                        `}
-                    </div>
+            <!-- Upcoming Assignments -->
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Upcoming Assignments</h2>
+                <a href="#" onclick="event.preventDefault(); loadView('assignments');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                    View All
+                </a>
                 </div>
                 
-                <!-- Recent Discussions -->
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-semibold">Recent Discussions</h2>
-                        <a href="#" onclick="event.preventDefault(); loadView('discussions');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
-                            View All
-                        </a>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
-                        ${recentDiscussions.length > 0 ? `
-                            <div class="space-y-4">
-                                ${recentDiscussions.map(discussion => {
-                                    const course = discussion.course;
-                                    const courseName = typeof course === 'object' ? course.name : 'Course';
-                                    const courseCode = typeof course === 'object' ? course.code : '';
-                                    const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
-                                    
-                                    return `
-                                        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer ${discussion.isAnnouncement ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30' : ''}" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
-                                            <div class="flex justify-between items-start">
-                                                <h3 class="font-medium">
-                                                    ${discussion.isAnnouncement ? '<i class="fas fa-bullhorn text-blue-500 mr-1"></i> ' : ''}
-                                                    ${discussion.title}
-                                                </h3>
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(discussion.createdAt)}</span>
-                                            </div>
-                                            <div class="flex items-center mt-1">
-                                                <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
-                                                    ${courseCode}
-                                                </span>
-                                                <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">by ${discussion.author.firstName} ${discussion.author.lastName}</span>
-                                            </div>
-                                            <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">${discussion.content}</p>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        ` : `
-                            <div class="text-center py-6">
-                                <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <i class="fas fa-comments text-gray-500 text-xl"></i>
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                ${upcomingAssignments.length > 0 ? `
+                    <div class="space-y-4">
+                    ${upcomingAssignments.map(assignment => {
+            const course = assignment.course;
+            const courseName = typeof course === 'object' ? course.name : 'Course';
+            const courseCode = typeof course === 'object' ? course.code : '';
+            const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
+            const dueDate = new Date(assignment.dueDate);
+            const now = new Date();
+            const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+
+            return `
+                        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer" onclick="showAssignmentModal('${assignment._id}')">
+                            <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-medium">${assignment.title}</h3>
+                                <div class="flex items-center mt-1">
+                                <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
+                                    ${courseCode}
+                                </span>
+                                <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">${courseName}</span>
                                 </div>
-                                <p class="text-gray-600 dark:text-gray-400">No recent discussions</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Join a discussion or start a new one!</p>
-                                <button onclick="loadView('discussions')" class="mt-3 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                                    Browse Discussions
-                                </button>
                             </div>
-                        `}
-                    </div>
-                    
-                </div>
-                <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-md p-10">
-                    <h3 class="text-lg font-semibold mb-3">Calendar</h3>
-                    <div class="text-center py-4 px-2">
-                        <div class="font-medium text-lg mb-2">${getCurrentMonth()}</div>
-                        <div class="grid grid-cols-7 gap-1 text-xs mb-2">
-                            <div>Su</div>
-                            <div>Mo</div>
-                            <div>Tu</div>
-                            <div>We</div>
-                            <div>Th</div>
-                            <div>Fr</div>
-                            <div>Sa</div>
+                            <div class="text-right">
+                                <div class="font-medium text-sm ${daysLeft <= 1 ? 'text-red-500' : 'text-gray-700 dark:text-gray-300'}">
+                                ${formatDate(assignment.dueDate, true)}
+                                </div>
+                                <div class="text-xs ${daysLeft <= 1 ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}">
+                                ${daysLeft === 0 ? 'Due today' : daysLeft === 1 ? 'Due tomorrow' : `${daysLeft} days left`}
+                                </div>
+                            </div>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-7 gap-1">
-                            ${generateCalendarDays(upcomingAssignments)}
-                        </div>
+                        `;
+        }).join('')}
                     </div>
+                ` : `
+                    <div class="text-center py-6">
+                    <div class="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fas fa-check text-green-500 text-xl"></i>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">You're all caught up!</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">No upcoming assignments due.</p>
+                    </div>
+                `}
                 </div>
             </div>
+            
+            <!-- Recent Discussions -->
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Recent Discussions</h2>
+                <a href="#" onclick="event.preventDefault(); loadView('discussions');" class="text-primary dark:text-primaryLight hover:underline text-sm font-medium">
+                    View All
+                </a>
+                </div>
+                
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5">
+                ${recentDiscussions.length > 0 ? `
+                    <div class="space-y-4">
+                    ${recentDiscussions.map(discussion => {
+            const course = discussion.course;
+            const courseName = typeof course === 'object' ? course.name : 'Course';
+            const courseCode = typeof course === 'object' ? course.code : '';
+            const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
+
+            return `
+                        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer ${discussion.isAnnouncement ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30' : ''}" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
+                            <div class="flex justify-between items-start">
+                            <h3 class="font-medium">
+                                ${discussion.isAnnouncement ? '<i class="fas fa-bullhorn text-blue-500 mr-1"></i> ' : ''}
+                                ${discussion.title}
+                            </h3>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(discussion.createdAt)}</span>
+                            </div>
+                            <div class="flex items-center mt-1">
+                            <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
+                                ${courseCode}
+                            </span>
+                            <span class="mx-2 text-xs text-gray-500 dark:text-gray-400">•</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">by ${discussion.author.firstName} ${discussion.author.lastName}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">${discussion.content}</p>
+                        </div>
+                        `;
+        }).join('')}
+                    </div>
+                ` : `
+                    <div class="text-center py-6">
+                    <div class="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fas fa-comments text-gray-500 text-xl"></i>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400">No recent discussions</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Join a discussion or start a new one!</p>
+                    <button onclick="loadView('discussions')" class="mt-3 px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
+                        Browse Discussions
+                    </button>
+                    </div>
+                `}
+                </div>
+            </div>
+            </div>
+
+            <!-- Calendar and Announcements Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <!-- Calendar Card -->
+            <div class="flex flex-col h-full">
+                <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Calendar</h2>
+                </div>
+                <div class="flex-1 flex flex-col">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-10 flex-1 flex flex-col">
+                    <div class="font-medium text-lg mb-2">${getCurrentMonth()}</div>
+                    <div class="grid grid-cols-7 gap-1 text-xs mb-2">
+                    <div>Su</div>
+                    <div>Mo</div>
+                    <div>Tu</div>
+                    <div>We</div>
+                    <div>Th</div>
+                    <div>Fr</div>
+                    <div>Sa</div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1 flex-1">
+                    ${generateCalendarDays(upcomingAssignments)}
+                    </div>
+                </div>
+                </div>
+            </div>
+            <!-- Recent Announcements Card -->
+            <div class="flex flex-col h-full">
+                <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Recent Announcements</h2>
+                </div>
+                <div class="flex-1 flex flex-col">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-10 flex-1 flex flex-col">
+                    ${recentAnnouncements.length > 0 ? `
+                    <div class="space-y-4">
+                    ${recentAnnouncements.map(announcement => {
+            // Properly handle course data
+            const course = typeof announcement.course === 'object' ?
+                announcement.course :
+                { _id: announcement.course, code: '', color: '#5D5CDE' };
+
+            return `
+        <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30"
+            onclick="loadView('course-detail', {courseId: '${course._id}'})">
+            <div class="flex items-center mb-1">
+                <img src="${getProfileImageUrl(announcement.author)}" alt="Instructor" class="w-10 h-10 rounded-full mr-3">
+                <div>
+                    <p class="text-gray-500 dark:text-gray-400 font-normal text-sm">
+                        ${announcement.author.firstName} ${announcement.author.lastName} • ${formatTimeAgo(announcement.createdAt)}
+                    </p>
+                    <div class="font-medium">
+                        <i class="fas fa-bullhorn text-blue-500 mr-2"></i>${announcement.title}
+                    </div>
+                    <div class="flex items-center mt-1">
+                        ${course.code ? `
+                            <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${course.color}25; color: ${course.color}">
+                                ${course.code}
+                            </span>
+                        ` : ''}
+                    </div>
+                    <div class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">${announcement.content}</div>
+                </div>
+            </div>
+        </div>
+    `;
+        }).join('')}
+                    </div>
+                    ` : `
+                    <div class="text-center py-6">
+                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i class="fas fa-bullhorn text-blue-500 text-xl"></i>
+                        </div>
+                        <p class="text-gray-600 dark:text-gray-400">No recent announcements</p>
+                    </div>
+                    `}
+                </div>
+                </div>
+            </div>
+            </div>
         `;
-        
+
     } catch (error) {
         console.error('Error loading dashboard data:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading dashboard</p>
                 <p>${error.message || 'Failed to load dashboard data'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadDashboard()">Retry</button>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadLoginPage()">Retry</button>
             </div>
         `;
     }
@@ -505,24 +602,24 @@ async function loadCourses() {
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
+
         // Fetch user's enrolled courses
         const myCoursesResponse = await courseService.getMyCourses();
         const myCourses = myCoursesResponse.data.courses;
-        
+
         // Fetch all available courses
         const allCoursesResponse = await courseService.getAllCourses();
         const allCourses = allCoursesResponse.data.courses;
-        
+
         // Filter out courses the user is already enrolled in
         const availableCourses = allCourses.filter(course => {
             // Skip courses where user is instructor
             if (course.instructor._id === currentUser._id) return false;
-            
+
             // Skip courses user is already enrolled in
             return !myCourses.some(myCourse => myCourse._id === course._id);
         });
-        
+
         // Build the view
         content.innerHTML = `
             <div class="mb-6 flex flex-wrap justify-between items-center">
@@ -571,6 +668,7 @@ async function loadCourses() {
                                 data-id="${course._id}" 
                                 data-name="${course.name}"
                                 data-code="${course.code}"
+                                data-created-at="${course.createdAt}"
                                 onclick="loadView('course-detail', {courseId: '${course._id}'})">
                                 <div class="h-32 bg-gradient-to-r relative" style="background-color: ${course.color || '#5D5CDE'}">
                                     ${course.instructor._id === currentUser._id ? `
@@ -657,9 +755,9 @@ async function loadCourses() {
                 `}
             </div>
         `;
-        
+
         // Set up event listeners
-        
+
         // Tab switching
         document.getElementById('myCoursesTab').addEventListener('click', () => {
             // Update active tab
@@ -667,24 +765,24 @@ async function loadCourses() {
             document.getElementById('myCoursesTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
             document.getElementById('availableCoursesTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('availableCoursesTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-            
+
             // Show/hide content
             document.getElementById('myCoursesContent').classList.remove('hidden');
             document.getElementById('availableCoursesContent').classList.add('hidden');
         });
-        
+
         document.getElementById('availableCoursesTab').addEventListener('click', () => {
             // Update active tab
             document.getElementById('availableCoursesTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('availableCoursesTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
             document.getElementById('myCoursesTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('myCoursesTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-            
+
             // Show/hide content
             document.getElementById('availableCoursesContent').classList.remove('hidden');
             document.getElementById('myCoursesContent').classList.add('hidden');
         });
-        
+
         // Create course button
         const createCourseBtn = document.getElementById('createCourseBtn');
         if (createCourseBtn) {
@@ -692,7 +790,7 @@ async function loadCourses() {
                 showCreateCourseModal();
             });
         }
-        
+
         // Browse courses button
         const browseCourseBtn = document.getElementById('browseCourseBtn');
         if (browseCourseBtn) {
@@ -700,7 +798,7 @@ async function loadCourses() {
                 document.getElementById('availableCoursesTab').click();
             });
         }
-        
+
         // Course enrollment buttons
         const enrollBtns = document.querySelectorAll('.enroll-btn');
         enrollBtns.forEach(btn => {
@@ -711,7 +809,7 @@ async function loadCourses() {
                 showEnrollmentModal(course);
             });
         });
-        
+
         // Available course card click handler
         const availableCourseCards = document.querySelectorAll('#availableCoursesContent .course-card');
         availableCourseCards.forEach(card => {
@@ -721,27 +819,27 @@ async function loadCourses() {
                 showCoursePreviewModal(course);
             });
         });
-        
+
         // Course search
         const searchInput = document.getElementById('searchCourses');
         searchInput.addEventListener('input', () => {
             const searchTerm = searchInput.value.toLowerCase();
             filterCourses(searchTerm);
         });
-        
+
         // Course sorting
         const sortSelect = document.getElementById('courseSort');
         sortSelect.addEventListener('change', () => {
             sortCourses(sortSelect.value);
         });
-        
+
     } catch (error) {
         console.error('Error loading courses:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading courses</p>
                 <p>${error.message || 'Failed to load courses data'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadCourses()">Retry</button>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadLoginPage()">Retry</button>
             </div>
         `;
     }
@@ -753,7 +851,7 @@ function filterCourses(searchTerm) {
     courseCards.forEach(card => {
         const name = card.dataset.name.toLowerCase();
         const code = card.dataset.code.toLowerCase();
-        
+
         if (name.includes(searchTerm) || code.includes(searchTerm)) {
             card.classList.remove('hidden');
         } else {
@@ -765,23 +863,34 @@ function filterCourses(searchTerm) {
 function sortCourses(sortBy) {
     const myCoursesContent = document.getElementById('myCoursesContent');
     const availableCoursesContent = document.getElementById('availableCoursesContent');
-    
+
     [myCoursesContent, availableCoursesContent].forEach(container => {
+        if (!container) return;
+
         const courseCards = Array.from(container.querySelectorAll('.course-card'));
-        
+
         courseCards.sort((a, b) => {
-            if (sortBy === 'name') {
-                return a.dataset.name.localeCompare(b.dataset.name);
-            } else if (sortBy === 'code') {
-                return a.dataset.code.localeCompare(b.dataset.code);
-            } else if (sortBy === 'recent') {
-                // Use the DOM order for "recent" since we don't track creation date in the card
-                return 0;
+            switch (sortBy) {
+                case 'name':
+                    return a.dataset.name.localeCompare(b.dataset.name);
+                case 'recent':
+                    // Sort by createdAt timestamp
+                    const dateA = new Date(a.dataset.createdAt || 0);
+                    const dateB = new Date(b.dataset.createdAt || 0);
+                    return dateB - dateA; // Most recent first
+                case 'code':
+                    return a.dataset.code.localeCompare(b.dataset.code);
+                default:
+                    return 0;
             }
         });
-        
-        // Reattach sorted cards
-        courseCards.forEach(card => container.querySelector('.grid').appendChild(card));
+
+        // Get the grid container
+        const grid = container.querySelector('.grid');
+        if (grid) {
+            // Reattach sorted cards
+            courseCards.forEach(card => grid.appendChild(card));
+        }
     });
 }
 /**
@@ -800,7 +909,7 @@ function showCreateCourseModal() {
         '#14B8A6', // Teal
         '#F97316', // Orange
     ];
-    
+
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
@@ -850,24 +959,24 @@ function showCreateCourseModal() {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Track selected color
     let selectedColor = availableColors[0];
-    
+
     // Set up event listeners
     document.getElementById('closeCreateCourseModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelCreateCourseBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Color selection
     const colorOptions = document.querySelectorAll('.color-option');
     colorOptions.forEach(option => {
@@ -876,30 +985,30 @@ function showCreateCourseModal() {
             colorOptions.forEach(opt => {
                 opt.style.boxShadow = '';
             });
-            
+
             // Highlight selected option
             option.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.5)';
             selectedColor = option.dataset.color;
         });
     });
-    
+
     // Form submission
     document.getElementById('createCourseForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const name = document.getElementById('courseName').value;
         const code = document.getElementById('courseCode').value;
         const description = document.getElementById('courseDescription').value;
         const errorDiv = document.getElementById('createCourseError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         if (!name || !code) {
             errorDiv.textContent = 'Course name and code are required.';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         try {
             // Submit course data
             await courseService.createCourse({
@@ -908,7 +1017,7 @@ function showCreateCourseModal() {
                 description,
                 color: selectedColor
             });
-            
+
             // Close modal and refresh courses
             document.body.removeChild(modalContainer);
             showToast('Course created successfully!');
@@ -974,21 +1083,21 @@ function showCoursePreviewModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closePreviewModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelPreviewBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('enrollFromPreviewBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showEnrollmentModal(course);
@@ -1008,25 +1117,25 @@ async function loadCourseDetail(courseId) {
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
+
         // Fetch course data
         const courseResponse = await courseService.getCourse(courseId);
         const course = courseResponse.data.course;
         currentCourse = course;
-        
+
         // Determine user role in the course
         const isInstructor = (course.instructor._id === currentUser._id) || currentUser.role === 'admin';
-        const isEnrolled = course.students.some(student => 
-            (typeof student === 'object' && student._id === currentUser._id) || 
+        const isEnrolled = course.students.some(student =>
+            (typeof student === 'object' && student._id === currentUser._id) ||
             student === currentUser._id
         );
-        
+
         // Fetch course resources, assignments, discussions and announcements
         let courseResources = [];
         let courseAssignments = [];
         let courseDiscussions = [];
         let courseAnnouncements = [];
-        
+
         try {
             // Fetch resources
             const resourcesResponse = await resourceService.getCourseResources(courseId);
@@ -1034,12 +1143,12 @@ async function loadCourseDetail(courseId) {
         } catch (error) {
             console.warn('Could not load resources:', error);
         }
-        
+
         try {
             // Fetch assignments
             const assignmentsResponse = await assignmentService.getCourseAssignments(courseId);
             courseAssignments = assignmentsResponse.data.assignments;
-            
+
             // If user is a student, get submissions for status display
             if (!isInstructor && isEnrolled) {
                 // For each assignment, fetch submission if exists
@@ -1047,13 +1156,13 @@ async function loadCourseDetail(courseId) {
                     try {
                         const submissionsResponse = await assignmentService.getSubmissions(courseAssignments[i]._id);
                         const submissions = submissionsResponse.data.submissions;
-                        
+
                         // Find the student's submission for this assignment
-                        const mySubmission = submissions.find(s => 
-                            (typeof s.student === 'object' && s.student._id === currentUser._id) || 
+                        const mySubmission = submissions.find(s =>
+                            (typeof s.student === 'object' && s.student._id === currentUser._id) ||
                             s.student === currentUser._id
                         );
-                        
+
                         // Attach submission to assignment object for easier access
                         if (mySubmission) {
                             courseAssignments[i].mySubmission = mySubmission;
@@ -1063,14 +1172,14 @@ async function loadCourseDetail(courseId) {
                     }
                 }
             }
-            
+
             // Sort assignments by due date (upcoming first)
             courseAssignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-            
+
         } catch (error) {
             console.warn('Could not load assignments:', error);
         }
-        
+
         try {
             // Fetch discussions
             const discussionsResponse = await discussionService.getCourseDiscussions(courseId);
@@ -1078,26 +1187,26 @@ async function loadCourseDetail(courseId) {
             // Separate announcements from regular discussions
             courseDiscussions = discussionsResponse.data.discussions.filter(d => !d.isAnnouncement);
             courseAnnouncements = announcementsResponse.data.announcements;
-            
+
             // Sort announcements by date (newest first)
             courseAnnouncements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            
+
             // Sort discussions by activity (newest/most active first)
             courseDiscussions.sort((a, b) => {
                 // First check if pinned
                 if (a.isPinned && !b.isPinned) return -1;
                 if (!a.isPinned && b.isPinned) return 1;
-                
+
                 // Then by last activity
                 const aLastActivity = a.updatedAt || a.createdAt;
                 const bLastActivity = b.updatedAt || b.createdAt;
                 return new Date(bLastActivity) - new Date(aLastActivity);
             });
-            
+
         } catch (error) {
             console.warn('Could not load discussions:', error);
         }
-        
+
         // Generate HTML
         content.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden mb-6">
@@ -1206,32 +1315,32 @@ async function loadCourseDetail(courseId) {
                         ${courseAssignments.length > 0 ? `
                             <div class="space-y-3">
                                 ${courseAssignments.slice(0, 5).map(assignment => {
-                                    const dueDate = new Date(assignment.dueDate);
-                                    const now = new Date();
-                                    const isPastDue = dueDate < now;
-                                    const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
-                                    
-                                    // Determine status for students
-                                    let status = 'Upcoming';
-                                    let statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-                                    
-                                    if (!isInstructor && assignment.mySubmission) {
-                                        if (assignment.mySubmission.status === 'graded' || assignment.mySubmission.grade) {
-                                            status = 'Graded';
-                                            statusClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-                                        } else {
-                                            status = 'Submitted';
-                                            statusClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-                                        }
-                                    } else if (isPastDue) {
-                                        status = 'Past Due';
-                                        statusClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-                                    } else if (daysLeft <= 1) {
-                                        status = 'Due Soon';
-                                        statusClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
-                                    }
-                                    
-                                    return `
+            const dueDate = new Date(assignment.dueDate);
+            const now = new Date();
+            const isPastDue = dueDate < now;
+            const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+
+            // Determine status for students
+            let status = 'Upcoming';
+            let statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+
+            if (!isInstructor && assignment.mySubmission) {
+                if (assignment.mySubmission.status === 'graded' || assignment.mySubmission.grade) {
+                    status = 'Graded';
+                    statusClass = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
+                } else {
+                    status = 'Submitted';
+                    statusClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
+                }
+            } else if (isPastDue) {
+                status = 'Past Due';
+                statusClass = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
+            } else if (daysLeft <= 1) {
+                status = 'Due Soon';
+                statusClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
+            }
+
+            return `
                                         <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition">
                                             <div class="flex justify-between items-start">
                                                 <div>
@@ -1271,7 +1380,7 @@ async function loadCourseDetail(courseId) {
                                             </div>
                                         </div>
                                     `;
-                                }).join('')}
+        }).join('')}
                             </div>
                             
                             ${courseAssignments.length > 5 ? `
@@ -1451,9 +1560,9 @@ async function loadCourseDetail(courseId) {
                 </div>
             </div>
         `;
-        
+
         // Set up event listeners
-        
+
         // Enrollment button
         const enrollBtn = document.getElementById('enrollBtn');
         if (enrollBtn) {
@@ -1462,26 +1571,26 @@ async function loadCourseDetail(courseId) {
             });
         }
         const unenrollBtn = document.getElementById('unenrollBtn');
-    if (unenrollBtn) {
-      unenrollBtn.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to unenroll from this course?')) {
-          try {
-            await courseService.unenrollFromCourse(courseId);
-            showToast('Successfully unenrolled from course');
-            loadView('courses');
-          } catch (error) {
-            showToast(`Failed to unenroll: ${error.message}`, 'error');
-          }
+        if (unenrollBtn) {
+            unenrollBtn.addEventListener('click', async () => {
+                if (confirm('Are you sure you want to unenroll from this course?')) {
+                    try {
+                        await courseService.unenrollFromCourse(courseId);
+                        showToast('Successfully unenrolled from course');
+                        loadView('courses');
+                    } catch (error) {
+                        showToast(`Failed to unenroll: ${error.message}`, 'error');
+                    }
+                }
+            });
         }
-      });
-    }
 
         // Announcements
         const createAnnouncementBtn = document.getElementById('createAnnouncementBtn');
-    if (createAnnouncementBtn) {
-      createAnnouncementBtn.addEventListener('click', () => showNewAnnouncementModal());
-    }
-        
+        if (createAnnouncementBtn) {
+            createAnnouncementBtn.addEventListener('click', () => showNewAnnouncementModal());
+        }
+
         // Assignments
         const newAssignmentBtn = document.getElementById('newAssignmentBtn');
         if (newAssignmentBtn) {
@@ -1489,21 +1598,21 @@ async function loadCourseDetail(courseId) {
                 showCreateAssignmentModal();
             });
         }
-        
+
         const createFirstAssignmentBtn = document.getElementById('createFirstAssignmentBtn');
         if (createFirstAssignmentBtn) {
             createFirstAssignmentBtn.addEventListener('click', () => {
                 showCreateAssignmentModal();
             });
         }
-        
+
         const viewAllAssignmentsBtn = document.getElementById('viewAllAssignmentsBtn');
         if (viewAllAssignmentsBtn) {
             viewAllAssignmentsBtn.addEventListener('click', () => {
                 loadView('assignments', { courseId: course._id });
             });
         }
-        
+
         // Discussions
         const newDiscussionBtn = document.getElementById('newDiscussionBtn');
         if (newDiscussionBtn) {
@@ -1511,21 +1620,21 @@ async function loadCourseDetail(courseId) {
                 showNewDiscussionModal();
             });
         }
-        
+
         const startFirstDiscussionBtn = document.getElementById('startFirstDiscussionBtn');
         if (startFirstDiscussionBtn) {
             startFirstDiscussionBtn.addEventListener('click', () => {
                 showNewDiscussionModal();
             });
         }
-        
+
         const viewAllDiscussionsBtn = document.getElementById('viewAllDiscussionsBtn');
         if (viewAllDiscussionsBtn) {
             viewAllDiscussionsBtn.addEventListener('click', () => {
                 loadView('discussions', { courseId: course._id });
             });
         }
-        
+
         // Resources
         const uploadResourceBtn = document.getElementById('uploadResourceBtn');
         if (uploadResourceBtn) {
@@ -1533,20 +1642,20 @@ async function loadCourseDetail(courseId) {
                 showUploadResourceModal(course._id);
             });
         }
-        
+
         const addFirstResourceBtn = document.getElementById('addFirstResourceBtn');
         if (addFirstResourceBtn) {
             addFirstResourceBtn.addEventListener('click', () => {
                 showUploadResourceModal(course._id);
             });
         }
-        
+
         // Course settings
         const courseSettingsBtns = [
             document.getElementById('courseSettingsBtn'),
             document.getElementById('courseSettingsBtn2')
         ];
-        
+
         courseSettingsBtns.forEach(btn => {
             if (btn) {
                 btn.addEventListener('click', () => {
@@ -1554,7 +1663,7 @@ async function loadCourseDetail(courseId) {
                 });
             }
         });
-        
+
         // View students
         const viewStudentsBtn = document.getElementById('viewStudentsBtn');
         if (viewStudentsBtn) {
@@ -1562,7 +1671,7 @@ async function loadCourseDetail(courseId) {
                 showManageStudentsModal(course);
             });
         }
-        
+
         // Generate course link
         const generateCourseLinkBtn = document.getElementById('generateCourseLinkBtn');
         if (generateCourseLinkBtn) {
@@ -1570,7 +1679,7 @@ async function loadCourseDetail(courseId) {
                 showGenerateCourseLinkModal(course._id);
             });
         }
-        
+
     } catch (error) {
         console.error('Error loading course:', error);
         content.innerHTML = `
@@ -1594,7 +1703,7 @@ function copyToClipboard(text) {
     tempInput.select();
     document.execCommand('copy');
     document.body.removeChild(tempInput);
-    
+
     showToast('Copied to clipboard!');
 }
 
@@ -1646,7 +1755,7 @@ function getResourceTypeLabel(resource) {
 // Get color class for grade display
 function getGradeColorClass(score, total) {
     const percentage = (score / total) * 100;
-    
+
     if (percentage >= 90) {
         return 'text-green-500';
     } else if (percentage >= 80) {
@@ -1743,51 +1852,51 @@ function showCourseSettingsModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closeSettingsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('closeModalBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Edit Course Appearance
     document.getElementById('editAppearanceBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseAppearanceModal(course);
     });
-    
+
     // Edit Course Information
     document.getElementById('editInfoBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseInfoModal(course);
     });
-    
+
     // Edit Enrollment Options
     document.getElementById('editEnrollmentBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showEnrollmentOptionsModal(course);
     });
-    
+
     // View Course Links (new)
     document.getElementById('viewLinksBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseLinksModal(course);
     });
-    
+
     // Manage Students
     document.getElementById('manageStudentsBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showManageStudentsModal(course);
     });
-    
+
     // Danger Zone
     document.getElementById('dangerZoneBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -1808,7 +1917,7 @@ function showCourseAppearanceModal(course) {
         '#14B8A6', // Teal
         '#F97316', // Orange
     ];
-    
+
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
@@ -1843,26 +1952,26 @@ function showCourseAppearanceModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Track selected color
     let selectedColor = course.color || '#5D5CDE';
-    
+
     // Set up event listeners
     document.getElementById('closeAppearanceModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     document.getElementById('cancelAppearanceBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     // Color selection
     const colorOptions = document.querySelectorAll('.color-option');
     colorOptions.forEach(option => {
@@ -1871,26 +1980,26 @@ function showCourseAppearanceModal(course) {
             colorOptions.forEach(opt => {
                 opt.style.boxShadow = '';
             });
-            
+
             // Highlight selected option
             option.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.5)';
             selectedColor = option.dataset.color;
         });
     });
-    
+
     // Form submission
     document.getElementById('appearanceForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const errorDiv = document.getElementById('appearanceError');
         errorDiv.classList.add('hidden');
-        
+
         try {
             // Update course appearance
             await courseService.updateCourse(course._id, {
                 color: selectedColor
             });
-            
+
             // Close modal and refresh course
             document.body.removeChild(modalContainer);
             showToast('Course appearance updated successfully!');
@@ -1945,41 +2054,41 @@ function showCourseInfoModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closeInfoModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     document.getElementById('cancelInfoBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     // Form submission
     document.getElementById('infoForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const name = document.getElementById('courseName').value;
         const code = document.getElementById('courseCode').value;
         const description = document.getElementById('courseDescription').value;
         const errorDiv = document.getElementById('infoError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         // Validate inputs
         if (!name || !code) {
             errorDiv.textContent = 'Course name and code are required.';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         try {
             // Update course information
             await courseService.updateCourse(course._id, {
@@ -1987,7 +2096,7 @@ function showCourseInfoModal(course) {
                 code,
                 description
             });
-            
+
             // Close modal and refresh course
             document.body.removeChild(modalContainer);
             showToast('Course information updated successfully!');
@@ -2056,27 +2165,27 @@ function showEnrollmentOptionsModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Track enrollment code
     let enrollmentCode = course.enrollmentKey;
     let codeChanged = false;
-    
+
     // Set up event listeners
     document.getElementById('closeEnrollmentModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     document.getElementById('cancelEnrollmentBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     // Generate new enrollment code
     document.getElementById('generateNewCodeBtn').addEventListener('click', () => {
         // Generate a random 6-character alphanumeric code
@@ -2085,36 +2194,36 @@ function showEnrollmentOptionsModal(course) {
         for (let i = 0; i < 6; i++) {
             newCode += chars.charAt(Math.floor(Math.random() * chars.length));
         }
-        
+
         // Update the input field
         const codeInput = modalContainer.querySelector('input[readonly]');
         codeInput.value = newCode;
         enrollmentCode = newCode;
         codeChanged = true;
     });
-    
+
     // Form submission
     document.getElementById('enrollmentForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const allowEnrollment = document.getElementById('allowEnrollment').checked;
         const errorDiv = document.getElementById('enrollmentError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         try {
             // Update course enrollment options
             const updateData = {
                 allowEnrollment
             };
-            
+
             // Only include enrollmentCode if it was changed
             if (codeChanged) {
                 updateData.enrollmentCode = enrollmentCode;
             }
-            
+
             await courseService.updateCourse(course._id, updateData);
-            
+
             // Close modal and refresh course
             document.body.removeChild(modalContainer);
             showToast('Enrollment options updated successfully!');
@@ -2138,28 +2247,28 @@ function showManageStudentsModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add loading modal to DOM
     const loadingContainer = document.createElement('div');
     loadingContainer.innerHTML = loadingModalHtml;
     document.body.appendChild(loadingContainer);
-    
+
     // Fetch detailed student data
     fetchStudentData(course)
         .then(students => {
             // Remove loading modal
             document.body.removeChild(loadingContainer);
-            
+
             // Create and show the student management modal
             displayStudentManagementModal(course, students);
         })
         .catch(error => {
             console.error('Error fetching student data:', error);
-            
+
             // Remove loading modal and show error
             document.body.removeChild(loadingContainer);
             showToast('Failed to load student data. Please try again.', 'error');
-            
+
             // Go back to course settings
             showCourseSettingsModal(course);
         });
@@ -2168,15 +2277,15 @@ function showManageStudentsModal(course) {
 // Helper to fetch detailed student data
 async function fetchStudentData(course) {
     // If students are already objects with complete data, use them
-    if (course.students && course.students.length > 0 && 
+    if (course.students && course.students.length > 0 &&
         typeof course.students[0] === 'object' && course.students[0].firstName) {
         return course.students;
     }
-    
+
     // Otherwise, fetch detailed data for each student
     const studentIds = course.students || [];
     const students = [];
-    
+
     for (const id of studentIds) {
         try {
             const studentId = typeof id === 'object' ? id._id : id;
@@ -2193,7 +2302,7 @@ async function fetchStudentData(course) {
             });
         }
     }
-    
+
     return students;
 }
 
@@ -2276,41 +2385,41 @@ function displayStudentManagementModal(course, students) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closeStudentsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     document.getElementById('closeStudentsModalBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     // Add student button
     document.getElementById('addStudentBtn').addEventListener('click', () => {
         // Hide this modal temporarily (don't remove)
         modalContainer.style.display = 'none';
-        
+
         // Show add student modal
         showAddStudentModal(course, modalContainer);
     });
-    
+
     // Search functionality
     document.getElementById('searchStudents').addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
         const rows = document.querySelectorAll('.student-row');
-        
+
         rows.forEach(row => {
             const studentName = row.querySelector('.font-medium').textContent.toLowerCase();
             const studentEmail = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            
+
             if (studentName.includes(searchTerm) || studentEmail.includes(searchTerm)) {
                 row.style.display = '';
             } else {
@@ -2318,27 +2427,27 @@ function displayStudentManagementModal(course, students) {
             }
         });
     });
-    
+
     // Remove student buttons
     document.querySelectorAll('.remove-student-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const row = btn.closest('.student-row');
             const studentId = row.dataset.id;
             const studentName = row.querySelector('.font-medium').textContent;
-            
+
             if (confirm(`Are you sure you want to remove ${studentName} from this course?`)) {
                 try {
                     // Call API to remove student
                     await courseService.removeStudentFromCourse(course._id, studentId);
-                    
+
                     // Remove row from table
                     row.remove();
-                    
+
                     // Update count
-                    const countEl = modalContainer.querySelector('.text-gray-700 .font-medium') || 
-                    modalContainer.querySelector('.dark\\:text-gray-300 .font-medium');
+                    const countEl = modalContainer.querySelector('.text-gray-700 .font-medium') ||
+                        modalContainer.querySelector('.dark\\:text-gray-300 .font-medium');
                     countEl.textContent = parseInt(countEl.textContent) - 1;
-                    
+
                     showToast(`${studentName} has been removed from the course.`);
                 } catch (error) {
                     console.error('Error removing student:', error);
@@ -2381,44 +2490,44 @@ function showAddStudentModal(course, parentModal) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     const closeAddStudentModal = () => {
         document.body.removeChild(modalContainer);
         parentModal.style.display = '';
     };
-    
+
     document.getElementById('closeAddStudentModal').addEventListener('click', closeAddStudentModal);
     document.getElementById('cancelAddStudentBtn').addEventListener('click', closeAddStudentModal);
-    
+
     // Form submission
     document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const email = document.getElementById('studentEmail').value;
         const errorDiv = document.getElementById('addStudentError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         if (!email) {
             errorDiv.textContent = 'Student email is required.';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         try {
             // Call API to add student by email
             const response = await courseService.addStudentToCourse(course._id, { email });
-            
+
             // Close modals and refresh course view
             document.body.removeChild(modalContainer);
             document.body.removeChild(parentModal);
-            
+
             showToast('Student added to the course successfully!');
             loadCourseDetail(course._id);
         } catch (error) {
@@ -2471,28 +2580,28 @@ function showDangerZoneModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     const closeDangerModal = () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     };
-    
+
     document.getElementById('closeDangerModal').addEventListener('click', closeDangerModal);
     document.getElementById('cancelDangerBtn').addEventListener('click', closeDangerModal);
-    
+
     // Archive course
     document.getElementById('archiveCourseBtn').addEventListener('click', async () => {
         if (confirm(`Are you sure you want to archive ${course.name}? This will make the course read-only.`)) {
             try {
                 // Call API to archive course
                 await courseService.updateCourse(course._id, { isArchived: true });
-                
+
                 // Close modal and refresh course
                 document.body.removeChild(modalContainer);
                 showToast('Course archived successfully!');
@@ -2503,17 +2612,17 @@ function showDangerZoneModal(course) {
             }
         }
     });
-    
+
     // Delete course
     document.getElementById('deleteCourseBtn').addEventListener('click', async () => {
         const confirmText = `DELETE ${course.code}`;
         const userInput = prompt(`This action is IRREVERSIBLE. All course data, assignments, discussions, and resources will be permanently deleted.\n\nTo confirm, type "${confirmText}" below:`);
-        
+
         if (userInput === confirmText) {
             try {
                 // Call API to delete course
                 await courseService.deleteCourse(course._id);
-                
+
                 // Close modal and go back to courses view
                 document.body.removeChild(modalContainer);
                 showToast('Course deleted successfully!');
@@ -2575,40 +2684,40 @@ function showGenerateCourseLinkModal(courseId) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closeGenerateLinkModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelGenerateLinkBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Form submission
     document.getElementById('generateLinkForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const expiresIn = parseInt(document.getElementById('expiresIn').value) || 0;
         const maxUses = parseInt(document.getElementById('maxUses').value) || null;
         const errorDiv = document.getElementById('generateLinkError');
-        
+
         try {
             errorDiv.classList.add('hidden');
-            
+
             const options = {};
             if (expiresIn > 0) options.expiresIn = expiresIn;
             if (maxUses > 0) options.maxUses = maxUses;
-            
+
             // Generate course link
             const response = await courseLinkService.generateCourseLink(courseId, options);
             const link = response.data.courseLink;
-            
+
             // Show success with the generated link
             document.body.removeChild(modalContainer);
             showCourseLinkModal(link);
@@ -2624,7 +2733,7 @@ function showGenerateCourseLinkModal(courseId) {
 function showCourseLinkModal(link) {
     const baseUrl = window.location.origin + window.location.pathname;
     const linkUrl = `${baseUrl}?join=${link.token}`;
-    
+
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
@@ -2664,20 +2773,20 @@ function showCourseLinkModal(link) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     const closeLinkModal = () => {
         document.body.removeChild(modalContainer);
     };
-    
+
     document.getElementById('closeLinkSuccessModal').addEventListener('click', closeLinkModal);
     document.getElementById('closeLinkModalBtn').addEventListener('click', closeLinkModal);
-}  
+}
 // Add this new function to view and manage course links
 function showCourseLinksModal(course) {
     // Create loading state first
@@ -2689,30 +2798,30 @@ function showCourseLinksModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add loading modal to DOM
     const loadingContainer = document.createElement('div');
     loadingContainer.innerHTML = loadingModalHtml;
     document.body.appendChild(loadingContainer);
-    
+
     // Fetch course links
     courseLinkService.getCourseLinks(course._id)
         .then(response => {
             const links = response.data.courseLinks || [];
-            
+
             // Remove loading modal
             document.body.removeChild(loadingContainer);
-            
+
             // Create and show the course links modal
             displayCourseLinksModal(course, links);
         })
         .catch(error => {
             console.error('Error fetching course links:', error);
-            
+
             // Remove loading modal and show error
             document.body.removeChild(loadingContainer);
             showToast('Failed to load course links. Please try again.', 'error');
-            
+
             // Go back to course settings
             showCourseSettingsModal(course);
         });
@@ -2722,7 +2831,7 @@ function showCourseLinksModal(course) {
 function displayCourseLinksModal(course, links) {
     // Format the base URL for sharing
     const baseUrl = window.location.origin + window.location.pathname;
-    
+
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
@@ -2764,24 +2873,24 @@ function displayCourseLinksModal(course, links) {
                                 </thead>
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     ${links.map(link => {
-                                        const isExpired = new Date(link.expiresAt) < new Date();
-                                        const isMaxedOut = link.maxUses && link.usedCount >= link.maxUses;
-                                        const isRevoked = !link.isActive;
-                                        
-                                        let statusBadge = '';
-                                        if (isRevoked) {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Revoked</span>`;
-                                        } else if (isExpired) {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">Expired</span>`;
-                                        } else if (isMaxedOut) {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">Max Uses Reached</span>`;
-                                        } else {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Active</span>`;
-                                        }
-                                        
-                                        const linkUrl = `${baseUrl}?join=${link.token}`;
-                                        
-                                        return `
+        const isExpired = new Date(link.expiresAt) < new Date();
+        const isMaxedOut = link.maxUses && link.usedCount >= link.maxUses;
+        const isRevoked = !link.isActive;
+
+        let statusBadge = '';
+        if (isRevoked) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">Revoked</span>`;
+        } else if (isExpired) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">Expired</span>`;
+        } else if (isMaxedOut) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">Max Uses Reached</span>`;
+        } else {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Active</span>`;
+        }
+
+        const linkUrl = `${baseUrl}?join=${link.token}`;
+
+        return `
                                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 link-row ${isRevoked || isExpired || isMaxedOut ? 'opacity-60' : ''}" data-id="${link._id}">
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm">
                                                     ${formatDate(link.createdAt)}
@@ -2812,7 +2921,7 @@ function displayCourseLinksModal(course, links) {
                                                 </td>
                                             </tr>
                                         `;
-                                    }).join('')}
+    }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -2827,29 +2936,29 @@ function displayCourseLinksModal(course, links) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closeLinksModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     document.getElementById('backToSettingsBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showCourseSettingsModal(course);
     });
-    
+
     // Generate new link button
     document.getElementById('generateNewLinkBtn')?.addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showGenerateCourseLinkModal(course._id);
     });
-    
+
     // Copy link buttons
     document.querySelectorAll('.copy-link-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2857,17 +2966,17 @@ function displayCourseLinksModal(course, links) {
             copyToClipboard(link);
         });
     });
-    
+
     // Revoke link buttons
     document.querySelectorAll('.revoke-link-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const linkId = btn.dataset.id;
-            
+
             if (confirm('Are you sure you want to revoke this link? Students will no longer be able to use it to join the course.')) {
                 try {
                     await courseLinkService.revokeCourseLink(linkId);
                     showToast('Link revoked successfully!');
-                    
+
                     // Refresh the modal with updated data
                     document.body.removeChild(modalContainer);
                     showCourseLinksModal(course);
@@ -2884,7 +2993,7 @@ async function loadDiscussionDetail(discussionId) {
     // Fetch discussion data
     const response = await discussionService.getDiscussion(discussionId);
     const discussion = response.data.discussion;
-    
+
     content.innerHTML = `
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
             <div class="mb-4">
@@ -2893,18 +3002,28 @@ async function loadDiscussionDetail(discussionId) {
                         <i class="fas fa-arrow-left mr-2"></i>
                         Back to ${discussion.course.name}
                     </a>
-                    ${discussion.isPinned ? `
-                        <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            <i class="fas fa-thumbtack mr-1"></i> Pinned
-                        </span>
-                    ` : ''}
-                    <!-- 🗑 Delete Button (Only for author, instructor, or admin) -->
-                            ${(discussion.author._id === currentUser._id || currentUser.role === 'instructor' || currentUser.role === 'admin') ? `
-                                <button class="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition"
-                                        onclick="deleteDiscussion('${discussionId}')">
-                                    <i class="fas fa-trash-alt mr-1"></i> Delete
-                                </button>
-                            ` : ''}
+                    <div class="flex items-center gap-2">
+                        ${discussion.isPinned ? `
+                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                <i class="fas fa-thumbtack mr-1"></i> Pinned
+                            </span>
+                        ` : ''}
+                        ${(discussion.author._id !== currentUser._id) ? `
+                            <button onclick="showReportModal('discussion', '${discussion._id}', '${discussion.title}')" 
+                            class="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400">
+                            <i class="fas fa-flag"></i>
+                            </button>
+` :                         ''}
+                        <!-- 🗑 Delete Button (Only for author, instructor, or admin) -->
+                        ${(discussion.author._id === currentUser._id || currentUser.role === 'instructor' || currentUser.role === 'admin') ? `
+                            <button class="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition"
+                                    onclick="deleteDiscussion('${discussionId}')">
+                                <i class="fas fa-trash-alt mr-1"></i> Delete
+                            </button>
+                            
+                
+                        ` : ''}
+                    </div>
                 </div>
                 <h1 class="text-2xl font-bold">${discussion.title}</h1>
                 <div class="flex items-center mt-2 mb-4">
@@ -3009,16 +3128,16 @@ async function loadDiscussionDetail(discussionId) {
     if (replyForm) {
         replyForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const content = document.getElementById('replyContent').value;
             const errorDiv = document.getElementById('replyError');
-            
+
             try {
                 errorDiv.classList.add('hidden');
-                
+
                 // Add reply
                 await discussionService.addReply(discussionId, { content });
-                
+
                 // Reload discussion
                 loadView('discussion-detail', { discussionId });
                 showToast('Reply added successfully!');
@@ -3054,7 +3173,7 @@ async function deleteReply(discussionId, replyId) {
         loadView("discussion-detail", { discussionId });
     } catch (error) {
         showToast(`Failed to delete reply: ${error.message}`, "error");
-    }   
+    }
 }
 
 /**
@@ -3070,35 +3189,31 @@ async function loadResources(courseId = null) {
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
+
+        // Fetch course data if courseId is provided
+        if (courseId) {
+            const courseResponse = await courseService.getCourse(courseId);
+            currentCourseData = courseResponse.data.course;
+        } else {
+            currentCourseData = null;
+        }
+
         // Fetch resources based on parameters
         let resources = [];
-        let currentCourseData = null;
-        
-        if (courseId) {
-            // Fetch resources for a specific course
-            try {
+        try {
+            if (courseId) {
                 const response = await resourceService.getCourseResources(courseId);
                 resources = response.data.resources;
-                
-                // Also fetch the course data
-                const courseResponse = await courseService.getCourse(courseId);
-                currentCourseData = courseResponse.data.course;
-            } catch (error) {
-                console.error('Error fetching course resources:', error);
-                throw new Error('Failed to load course resources');
-            }
-        } else {
-            // Fetch all resources the user has access to
-            try {
+            } else {
                 const response = await resourceService.getAllResources();
                 resources = response.data.resources;
-            } catch (error) {
-                console.error('Error fetching all resources:', error);
-                throw new Error('Failed to load resources');
             }
+        } catch (error) {
+            console.error('Error fetching resources:', error);
+            throw new Error('Failed to fetch resources. Please try again.');
         }
-        
+
+
         // Get all user's courses for filter
         let userCourses = [];
         try {
@@ -3107,7 +3222,7 @@ async function loadResources(courseId = null) {
         } catch (error) {
             console.warn('Could not fetch courses for filter:', error);
         }
-        
+
         // Prepare data for rendering
         const resourceCategories = [
             { id: 'all', name: 'All Resources' },
@@ -3118,10 +3233,10 @@ async function loadResources(courseId = null) {
             { id: 'tutorial', name: 'Tutorial Videos' },
             { id: 'other', name: 'Other Resources' }
         ];
-        
+
         // Determine if user can upload resources
         const canUpload = currentUser.role === 'instructor' || currentUser.role === 'admin';
-        
+
         // Group resources by category
         const resourcesByCategory = {};
         resourceCategories.forEach(category => {
@@ -3133,7 +3248,7 @@ async function loadResources(courseId = null) {
                 );
             }
         });
-        
+
         // Build the view
         content.innerHTML = `
             <div class="mb-6 flex flex-wrap justify-between items-center">
@@ -3248,9 +3363,9 @@ async function loadResources(courseId = null) {
                                 </div>
                                 <h3 class="font-semibold text-lg mb-2">No Resources Found</h3>
                                 <p class="text-gray-600 dark:text-gray-400 mb-4">
-                                    ${currentCourseData ? 
-                                        'No resources have been added to this course yet.' : 
-                                        'No resources match your current filters.'}
+                                    ${currentCourseData ?
+                'No resources have been added to this course yet.' :
+                'No resources match your current filters.'}
                                 </p>
                                 ${canUpload ? `
                                     <button id="addFirstResourceBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
@@ -3263,9 +3378,9 @@ async function loadResources(courseId = null) {
                 </div>
             </div>
         `;
-        
+
         // Set up event listeners
-        
+
         // Upload resource button
         const uploadBtn = document.getElementById('uploadResourceBtn');
         if (uploadBtn) {
@@ -3273,7 +3388,7 @@ async function loadResources(courseId = null) {
                 showUploadResourceModal(courseId);
             });
         }
-        
+
         const viewDetailBtn = document.querySelectorAll('.resource-card');
         viewDetailBtn.forEach(card => {
             card.addEventListener('click', () => {
@@ -3299,7 +3414,7 @@ async function loadResources(courseId = null) {
                 showUploadResourceModal(courseId);
             });
         }
-        
+
         // Category filter buttons
         const categoryBtns = document.querySelectorAll('.resource-category-btn');
         categoryBtns.forEach(btn => {
@@ -3309,12 +3424,12 @@ async function loadResources(courseId = null) {
                     b.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
                 });
                 btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
-                
+
                 // Apply filter
                 filterResources();
             });
         });
-        
+
         // Course filter
         const courseFilter = document.getElementById('courseFilter');
         if (courseFilter) {
@@ -3328,7 +3443,7 @@ async function loadResources(courseId = null) {
                 }
             });
         }
-        
+
         // Resource type filter
         const typeFilters = document.querySelectorAll('.resource-type-filter');
         typeFilters.forEach(filter => {
@@ -3343,19 +3458,19 @@ async function loadResources(courseId = null) {
                 } else {
                     // If a specific type is checked, uncheck "All Types"
                     document.querySelector('.resource-type-filter[value="all"]').checked = false;
-                    
+
                     // If no specific types are checked, check "All Types"
                     const anyChecked = Array.from(typeFilters).some(f => f.value !== 'all' && f.checked);
                     if (!anyChecked) {
                         document.querySelector('.resource-type-filter[value="all"]').checked = true;
                     }
                 }
-                
+
                 // Apply filters
                 filterResources();
             });
         });
-        
+
         // Search input
         const searchInput = document.getElementById('searchResources');
         if (searchInput) {
@@ -3363,7 +3478,7 @@ async function loadResources(courseId = null) {
                 filterResources();
             });
         }
-        
+
         // Sort selection
         const sortSelect = document.getElementById('resourceSort');
         if (sortSelect) {
@@ -3371,16 +3486,21 @@ async function loadResources(courseId = null) {
                 filterResources();
             });
         }
-        
+
     } catch (error) {
         console.error('Error loading resources:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading resources</p>
                 <p>${error.message || 'Failed to load resources'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadResources(${courseId ? `'${courseId}'` : ''})">
-                    Try Again
-                </button>
+                <div class="mt-4 flex space-x-2">
+                    <button class="px-4 py-2 bg-primary text-white rounded-lg" onclick="loadResources(${courseId ? `'${courseId}'` : ''})">
+                        Retry
+                    </button>
+                    <button class="px-4 py-2 border border-gray-300 text-gray-700 dark:text-gray-300 rounded-lg" onclick="loadLoginPage()">
+                        Back to login Page
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -3397,32 +3517,32 @@ function generateResourceCard(resource) {
     const courseName = typeof course === 'object' ? (course.name || 'Unknown Course') : 'Unknown Course';
     const courseCode = typeof course === 'object' ? (course.code || '') : '';
     const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
-    
+
     // Get user details
     const addedBy = resource.addedBy || {};
-    const userName = typeof addedBy === 'object' ? 
+    const userName = typeof addedBy === 'object' ?
         `${addedBy.firstName || ''} ${addedBy.lastName || ''}`.trim() : 'Unknown User';
-    
+
     // Format dates
     const addedDate = formatDate(resource.createdAt);
     const updatedDate = resource.updatedAt ? formatDate(resource.updatedAt) : '';
-    
+
     // Get resource statistics
     const viewCount = resource.viewCount || 0;
     const likeCount = resource.likes?.length || 0;
     const commentCount = resource.comments?.length || 0;
-    
+
     // Determine if resource is pinned
     const isPinned = resource.isPinned || false;
-    
+
     // Determine if current user has liked the resource
     const isLiked = resource.likes?.includes(currentUser._id) || false;
-    
+
     // Determine if user can edit/delete
-    const canModify = 
+    const canModify =
         currentUser._id === (typeof resource.addedBy === 'object' ? resource.addedBy._id : resource.addedBy) ||
         currentUser.role === 'admin';
-    
+
     return `
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition resource-card"
             data-id="${resource._id}"
@@ -3465,7 +3585,7 @@ function generateResourceCard(resource) {
                             </a>
                             ${resource.type === 'file' ? `
                                 <a href="${resource.file?.filePath || '#'}" target="_blank" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750">
-                                    <i class="fas fa-download mr-2"></i> Download
+                                    <i class="fas fa-eye mr-2"></i> View
                                 </a>
                             ` : resource.type === 'link' ? `
                                 <a href="${resource.link}" target="_blank" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-750">
@@ -3534,7 +3654,7 @@ function getCategoryLabel(category) {
         'tutorial': 'Tutorial Videos',
         'other': 'Other Resources'
     };
-    
+
     return categories[category] || 'Other Resources';
 }
 
@@ -3546,7 +3666,7 @@ function getCategoryLabel(category) {
 function getResourceTypeIcon(resource) {
     let iconHtml = '';
     const size = 'text-2xl';
-    
+
     if (resource.type === 'file') {
         const fileType = resource.file?.fileType || '';
         if (fileType.includes('pdf')) {
@@ -3577,7 +3697,7 @@ function getResourceTypeIcon(resource) {
     } else {
         iconHtml = `<i class="far fa-file text-gray-500 ${size}"></i>`;
     }
-    
+
     return iconHtml;
 }
 
@@ -3589,39 +3709,40 @@ function filterResources() {
     const searchTerm = document.getElementById('searchResources').value.toLowerCase();
     const selectedCategory = document.querySelector('.resource-category-btn.bg-primary')?.dataset.category || 'all';
     const sortBy = document.getElementById('resourceSort').value;
-    
+
     // Get selected types
     const allTypesSelected = document.querySelector('.resource-type-filter[value="all"]').checked;
-    const selectedTypes = allTypesSelected ? ['file', 'link', 'text'] : 
+    const selectedTypes = allTypesSelected ? ['file', 'link', 'text'] :
         Array.from(document.querySelectorAll('.resource-type-filter:checked'))
             .map(checkbox => checkbox.value)
             .filter(value => value !== 'all');
-    
+
     // Get all resource cards
     const resourceCards = document.querySelectorAll('.resource-card');
-    
+
     // Filter resources
     resourceCards.forEach(card => {
         const title = card.dataset.title.toLowerCase();
         const category = card.dataset.category;
         const type = card.dataset.type;
-        
+
         const matchesSearch = title.includes(searchTerm);
         const matchesCategory = selectedCategory === 'all' || category === selectedCategory;
         const matchesType = selectedTypes.includes(type);
-        
+
         if (matchesSearch && matchesCategory && matchesType) {
             card.classList.remove('hidden');
         } else {
             card.classList.add('hidden');
         }
     });
-    
+
     // Sort visible resources
     const resourcesList = document.getElementById('resourcesList');
+
     if (resourcesList) {
         const visibleCards = Array.from(resourceCards).filter(card => !card.classList.contains('hidden'));
-        
+
         visibleCards.sort((a, b) => {
             if (sortBy === 'title') {
                 return a.dataset.title.localeCompare(b.dataset.title);
@@ -3634,18 +3755,16 @@ function filterResources() {
                 return 0;
             }
         });
-        
+
         // Re-append sorted cards
         visibleCards.forEach(card => resourcesList.appendChild(card));
     }
-    
     // Show/hide empty state
-    const resourcesContainer = document.getElementById('resourcesContainer');
-    const visibleCount = Array.from(resourceCards).filter(card => !card.classList.contains('hidden')).length;
-    
-    if (visibleCount === 0) {
+
+    else if (visibleCount === 0) {
         // Show empty state if no resources match filters
         const courseId = document.getElementById('courseFilter')?.value;
+        const resourcesContainer = document.getElementById('resourcesContainer');
         resourcesContainer.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
                 <div class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -3660,24 +3779,24 @@ function filterResources() {
                 </button>
             </div>
         `;
-        
+
         // Set up clear filters button
         document.getElementById('clearFiltersBtn').addEventListener('click', () => {
             // Reset search
             document.getElementById('searchResources').value = '';
-            
+
             // Reset category
             document.querySelector('.resource-category-btn[data-category="all"]').click();
-            
+
             // Reset type filters
             document.querySelector('.resource-type-filter[value="all"]').checked = true;
             document.querySelectorAll('.resource-type-filter:not([value="all"])').forEach(checkbox => {
                 checkbox.checked = false;
             });
-            
+
             // Reset sort
             document.getElementById('resourceSort').value = 'recent';
-            
+
             // Reload resources
             loadResources(courseId === 'all' ? null : courseId);
         });
@@ -3694,7 +3813,7 @@ function setupResourceCardListeners() {
             e.stopPropagation();
             const menu = btn.nextElementSibling;
             menu.classList.toggle('hidden');
-            
+
             // Close all other open menus
             document.querySelectorAll('.resource-menu:not(.hidden)').forEach(openMenu => {
                 if (openMenu !== menu) {
@@ -3703,20 +3822,20 @@ function setupResourceCardListeners() {
             });
         });
     });
-    
+
     // Close menus when clicking outside
     document.addEventListener('click', () => {
         document.querySelectorAll('.resource-menu:not(.hidden)').forEach(menu => {
             menu.classList.add('hidden');
         });
     });
-    
+
     // Like buttons
     document.querySelectorAll('.resource-like-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const resourceId = btn.dataset.id;
             const isLiked = btn.dataset.liked === 'true';
-            
+
             try {
                 if (isLiked) {
                     await resourceService.unlikeResource(resourceId);
@@ -3729,25 +3848,25 @@ function setupResourceCardListeners() {
                     btn.querySelector('i').classList.remove('far');
                     btn.querySelector('i').classList.add('fas');
                 }
-                
+
                 // Update like count
                 const response = await resourceService.getResource(resourceId);
                 const likeCount = response.data.resource.likes?.length || 0;
                 btn.querySelector('.resource-like-count').textContent = likeCount;
-                
+
                 // Update the card's dataset for sorting
                 const card = document.querySelector(`.resource-card[data-id="${resourceId}"]`);
                 if (card) {
                     card.dataset.likes = likeCount;
                 }
-                
+
             } catch (error) {
                 console.error('Error toggling resource like:', error);
                 showToast('Failed to update like status', 'error');
             }
         });
     });
-    
+
     // View buttons
     document.querySelectorAll('.resource-view-btn, .resource-title-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -3756,7 +3875,7 @@ function setupResourceCardListeners() {
             loadResourceDetail(resourceId);
         });
     });
-    
+
     // Comment buttons
     document.querySelectorAll('.resource-comment-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -3764,7 +3883,7 @@ function setupResourceCardListeners() {
             loadResourceDetail(resourceId, 'comments');
         });
     });
-    
+
     // Edit buttons
     document.querySelectorAll('.resource-edit-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -3773,13 +3892,13 @@ function setupResourceCardListeners() {
             showEditResourceModal(resourceId);
         });
     });
-    
+
     // Delete buttons
     document.querySelectorAll('.resource-delete-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             const resourceId = btn.dataset.id;
-            
+
             if (confirm('Are you sure you want to delete this resource? This action cannot be undone.')) {
                 deleteResource(resourceId);
             }
@@ -3801,11 +3920,11 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
+
         // Fetch resource details
         const response = await resourceService.getResource(resourceId);
         const resource = response.data.resource;
-        
+
         // Increase view count if not already viewed in this session
         const viewedResources = JSON.parse(sessionStorage.getItem('viewedResources') || '[]');
         if (!viewedResources.includes(resourceId)) {
@@ -3817,43 +3936,43 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 console.warn('Could not record resource view:', error);
             }
         }
-        
+
         // Get course details
         const course = resource.course || {};
         const courseName = typeof course === 'object' ? (course.name || 'Unknown Course') : 'Unknown Course';
         const courseCode = typeof course === 'object' ? (course.code || '') : '';
         const courseColor = typeof course === 'object' ? (course.color || '#5D5CDE') : '#5D5CDE';
         const courseId = typeof course === 'object' ? course._id : course;
-        
+
         // Get user details
         const addedBy = resource.addedBy || {};
-        const userName = typeof addedBy === 'object' ? 
+        const userName = typeof addedBy === 'object' ?
             `${addedBy.firstName || ''} ${addedBy.lastName || ''}`.trim() : 'Unknown User';
-        
+
         // Determine if user can edit/delete/pin
-        const canModify = 
+        const canModify =
             currentUser._id === (typeof resource.addedBy === 'object' ? resource.addedBy._id : resource.addedBy) ||
             currentUser.role === 'admin';
-        
+
         const canPin = currentUser.role === 'instructor' || currentUser.role === 'admin';
-        
+
         // Get resource statistics
         const viewCount = resource.viewCount || 0;
         const likeCount = resource.likes?.length || 0;
         const commentCount = resource.comments?.length || 0;
-        
+
         // Check if user has liked this resource
         const isLiked = resource.likes?.includes(currentUser._id) || false;
-        
+
         // Determine if resource is pinned
         const isPinned = resource.isPinned || false;
-        
+
         // Prepare comments
         const comments = resource.comments || [];
-        
+
         // Sort comments newest first
         comments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        
+
         // Build the view
         content.innerHTML = `
             <div class="mb-6">
@@ -3981,7 +4100,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                                             </div>
                                         </div>
                                         <a href="${resource.file?.filePath || '#'}" target="_blank" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                                            <i class="fas fa-download mr-1"></i> Download
+                                            <i class="fas fa-eye mr-1"></i> View 
                                         </a>
                                     </div>
                                 </div>
@@ -4044,6 +4163,13 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                                                 </div>
                                                 ${(currentUser._id === (comment.user?._id || comment.user)) || currentUser.role === 'admin' ? `
                                                     <div class="relative">
+                                                        // Change the report button section in discussion detail view
+                                                        ${(discussion.author._id !== currentUser._id) ? `
+                                                        <button onclick="showReportModal('discussion', '${discussion._id}', '${discussion.title}')" 
+                                                         class="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400">
+                                                        <i class="fas fa-flag"></i>
+                                                        </button>
+                                                        ` : ''}
                                                         <button class="comment-menu-btn p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                                                             <i class="fas fa-ellipsis-v"></i>
                                                         </button>
@@ -4094,7 +4220,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                         <div class="space-y-3">
                             ${resource.type === 'file' ? `
                                 <a href="${resource.file?.filePath || '#'}" target="_blank" class="flex items-center justify-center w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
-                                    <i class="fas fa-download mr-2"></i> Download File
+                                    <i class="fas fa-eye mr-2"></i> View File
                                 </a>
                             ` : resource.type === 'link' ? `
                                 <a href="${resource.link || '#'}" target="_blank" class="flex items-center justify-center w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
@@ -4149,9 +4275,9 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 </div>
             </div>
         `;
-        
+
         // Set up event listeners
-        
+
         // Back button
         document.getElementById('backToResourcesBtn').addEventListener('click', () => {
             // Go back to course resources if this was from a course
@@ -4161,28 +4287,28 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 loadResources();
             }
         });
-        
+
         // Tabs
         document.getElementById('infoTab').addEventListener('click', () => {
             document.getElementById('infoTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('infoTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
             document.getElementById('commentsTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('commentsTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-            
+
             document.getElementById('infoTabContent').classList.remove('hidden');
             document.getElementById('commentsTabContent').classList.add('hidden');
         });
-        
+
         document.getElementById('commentsTab').addEventListener('click', () => {
             document.getElementById('commentsTab').classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('commentsTab').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
             document.getElementById('infoTab').classList.remove('border-primary', 'text-primary', 'dark:text-primaryLight');
             document.getElementById('infoTab').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
-            
+
             document.getElementById('commentsTabContent').classList.remove('hidden');
             document.getElementById('infoTabContent').classList.add('hidden');
         });
-        
+
         // Like button
         const likeBtn = document.getElementById('likeResourceBtn');
         if (likeBtn) {
@@ -4201,19 +4327,19 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                         likeBtn.querySelector('i').classList.remove('far');
                         likeBtn.querySelector('i').classList.add('fas');
                     }
-                    
+
                     // Update like count
                     const updatedResponse = await resourceService.getResource(resourceId);
                     const updatedResource = updatedResponse.data.resource;
                     document.getElementById('likeCount').textContent = updatedResource.likes?.length || 0;
-                    
+
                 } catch (error) {
                     console.error('Error toggling resource like:', error);
                     showToast('Failed to update like status', 'error');
                 }
             });
         }
-        
+
         // Resource actions menu toggle
         const actionsBtn = document.getElementById('resourceActionsBtn');
         const actionsMenu = document.getElementById('resourceActionsMenu');
@@ -4222,12 +4348,12 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 e.stopPropagation();
                 actionsMenu.classList.toggle('hidden');
             });
-            
+
             document.addEventListener('click', () => {
                 actionsMenu.classList.add('hidden');
             });
         }
-        
+
         // Edit resource button
         const editBtn = document.getElementById('editResourceBtn');
         if (editBtn) {
@@ -4236,25 +4362,25 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 showEditResourceModal(resourceId);
             });
         }
-        
+
         // Delete resource button
         const deleteBtn = document.getElementById('deleteResourceBtn');
         if (deleteBtn) {
             deleteBtn.addEventListener('click', (e) => {
                 e.preventDefault();
-                
+
                 if (confirm('Are you sure you want to delete this resource? This action cannot be undone.')) {
                     deleteResource(resourceId);
                 }
             });
         }
-        
+
         // Toggle pin button
         const togglePinBtn = document.getElementById('togglePinBtn');
         if (togglePinBtn) {
             togglePinBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                
+
                 try {
                     if (isPinned) {
                         await resourceService.unpinResource(resourceId);
@@ -4263,7 +4389,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                         await resourceService.pinResource(resourceId);
                         showToast('Resource pinned successfully');
                     }
-                    
+
                     // Reload the resource detail view
                     loadResourceDetail(resourceId, activeTab);
                 } catch (error) {
@@ -4272,7 +4398,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 }
             });
         }
-        
+
         // Share resource button
         const shareBtn = document.getElementById('shareResourceBtn');
         if (shareBtn) {
@@ -4284,30 +4410,30 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 tempInput.select();
                 document.execCommand('copy');
                 document.body.removeChild(tempInput);
-                
+
                 showToast('Resource link copied to clipboard!');
             });
         }
-        
+
         // Comment form
         const commentForm = document.getElementById('commentForm');
         if (commentForm) {
             commentForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 const content = document.getElementById('commentContent').value.trim();
                 if (!content) {
                     showToast('Please enter a comment', 'error');
                     return;
                 }
-                
+
                 try {
                     // Submit the comment
                     await resourceService.addComment(resourceId, { content });
-                    
+
                     // Clear the form
                     document.getElementById('commentContent').value = '';
-                    
+
                     // Reload the resource detail view with comments tab active
                     loadResourceDetail(resourceId, 'comments');
                 } catch (error) {
@@ -4316,14 +4442,14 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 }
             });
         }
-        
+
         // Comment menu toggles
         document.querySelectorAll('.comment-menu-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const menu = btn.nextElementSibling;
                 menu.classList.toggle('hidden');
-                
+
                 // Close all other menus
                 document.querySelectorAll('.comment-menu:not(.hidden)').forEach(openMenu => {
                     if (openMenu !== menu) {
@@ -4332,59 +4458,59 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 });
             });
         });
-        
+
         // Close comment menus when clicking outside
         document.addEventListener('click', () => {
             document.querySelectorAll('.comment-menu:not(.hidden)').forEach(menu => {
                 menu.classList.add('hidden');
             });
         });
-        
+
         // Edit comment buttons
         document.querySelectorAll('.comment-edit-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 const commentId = btn.dataset.id;
                 const commentItem = document.querySelector(`.comment-item[data-id="${commentId}"]`);
-                
+
                 // Hide comment content and show edit form
                 commentItem.querySelector('.comment-content').classList.add('hidden');
                 commentItem.querySelector('.comment-edit-form').classList.remove('hidden');
-                
+
                 // Close the menu
                 commentItem.querySelector('.comment-menu').classList.add('hidden');
             });
         });
-        
+
         // Cancel edit buttons
         document.querySelectorAll('.cancel-edit-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const commentItem = btn.closest('.comment-item');
-                
+
                 // Show comment content and hide edit form
                 commentItem.querySelector('.comment-content').classList.remove('hidden');
                 commentItem.querySelector('.comment-edit-form').classList.add('hidden');
             });
         });
-        
+
         // Save comment buttons
         document.querySelectorAll('.save-comment-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const commentId = btn.dataset.id;
                 const commentItem = document.querySelector(`.comment-item[data-id="${commentId}"]`);
                 const content = commentItem.querySelector('.edit-comment-content').value.trim();
-                
+
                 if (!content) {
                     showToast('Comment cannot be empty', 'error');
                     return;
                 }
-                
+
                 try {
                     // Update the comment
                     await resourceService.updateComment(resourceId, commentId, { content });
-                    
+
                     // Reload the resource detail view with comments tab active
                     loadResourceDetail(resourceId, 'comments');
                 } catch (error) {
@@ -4393,19 +4519,19 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 }
             });
         });
-        
+
         // Delete comment buttons
         document.querySelectorAll('.comment-delete-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                
+
                 const commentId = btn.dataset.id;
-                
+
                 if (confirm('Are you sure you want to delete this comment?')) {
                     try {
                         // Delete the comment
                         await resourceService.deleteComment(resourceId, commentId);
-                        
+
                         // Reload the resource detail view with comments tab active
                         loadResourceDetail(resourceId, 'comments');
                     } catch (error) {
@@ -4415,7 +4541,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                 }
             });
         });
-        
+
     } catch (error) {
         console.error('Error loading resource detail:', error);
         content.innerHTML = `
@@ -4437,16 +4563,16 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
  */
 function formatFileSize(bytes) {
     if (!bytes || isNaN(bytes)) return 'Unknown size';
-    
+
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let size = bytes;
     let unitIndex = 0;
-    
+
     while (size >= 1024 && unitIndex < units.length - 1) {
         size /= 1024;
         unitIndex++;
     }
-    
+
     return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
@@ -4458,7 +4584,7 @@ async function loadDiscussions() {
         // Fetch discussions
         const discussionsResponse = await discussionService.getAllDiscussions();
         const discussions = discussionsResponse.data.discussions;
-        
+
         // Fetch popular discussions
         let popularDiscussions = [];
         try {
@@ -4472,14 +4598,14 @@ async function loadDiscussions() {
                 .sort((a, b) => (b.replyCount || b.replies?.length || 0) - (a.replyCount || a.replies?.length || 0))
                 .slice(0, 5);
         }
-        
+
         // Fetch user's courses for filtering
         const coursesResponse = await courseService.getMyCourses();
         const courses = coursesResponse.data.courses;
-        
+
         // Sort discussions by date (newest first)
         discussions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        
+
         content.innerHTML = `
             <div class="flex flex-wrap justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">Discussions</h2>
@@ -4528,10 +4654,10 @@ async function loadDiscussions() {
                                     </button>
                                 </div>
                             ` : discussions.map(discussion => {
-                                const course = discussion.course;
-                                const isMyPost = discussion.author._id === currentUser._id;
-                                
-                                return `
+            const course = discussion.course;
+            const isMyPost = discussion.author._id === currentUser._id;
+
+            return `
                                     <div class="py-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 -mx-5 px-5 transition discussion-item ${isMyPost ? 'my-discussion' : ''}" 
                                         data-course="${course._id}"
                                         data-mypost="${isMyPost}"
@@ -4575,7 +4701,7 @@ async function loadDiscussions() {
                                         ` : ''}
                                     </div>
                                 `;
-                            }).join('')}
+        }).join('')}
                         </div>
                         
                         ${discussions.length > 10 ? `
@@ -4620,9 +4746,9 @@ async function loadDiscussions() {
                                     </p>
                                     <p class="mb-2 text-gray-700 dark:text-gray-300">
                                         <span class="font-semibold">Total Replies:</span> ${discussions.reduce((total, discussion) => {
-                                            const myReplies = (discussion.replies || []).filter(reply => reply.author._id === currentUser._id).length;
-                                            return total + myReplies;
-                                        }, 0)}
+            const myReplies = (discussion.replies || []).filter(reply => reply.author._id === currentUser._id).length;
+            return total + myReplies;
+        }, 0)}
                                     </p>
                                     <button id="viewMyDiscussionsBtn" class="mt-2 w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
                                         View My Discussions
@@ -4636,74 +4762,74 @@ async function loadDiscussions() {
                 </div>
             </div>
         `;
-        
+
         // Setup event listeners
-        
+
         const emptyStateDiscussionBtn = document.getElementById('emptyStateDiscussionBtn');
         if (emptyStateDiscussionBtn) {
             emptyStateDiscussionBtn.addEventListener('click', () => showNewDiscussionModal());
         }
         const newDiscussionBtn = document.getElementById('newDscussionBtn');
-        if (newDiscussionBtn) { 
+        if (newDiscussionBtn) {
             newDiscussionBtn.addEventListener('click', () => showNewDiscussionModal());
-        
-        const startFirstDiscussionBtn = document.getElementById('startFirstDiscussionBtn');
-        if (startFirstDiscussionBtn) {
-            startFirstDiscussionBtn.addEventListener('click', () => showNewDiscussionModal());
-        }
-        
-        const viewMyDiscussionsBtn = document.getElementById('viewMyDiscussionsBtn');
-        if (viewMyDiscussionsBtn) {
-            viewMyDiscussionsBtn.addEventListener('click', () => {
-                // Select the "My Posts" filter button and trigger a click
-                const myPostsBtn = document.querySelector('.discussion-filter-btn[data-filter="my"]');
-                if (myPostsBtn) myPostsBtn.click();
+
+            const startFirstDiscussionBtn = document.getElementById('startFirstDiscussionBtn');
+            if (startFirstDiscussionBtn) {
+                startFirstDiscussionBtn.addEventListener('click', () => showNewDiscussionModal());
+            }
+
+            const viewMyDiscussionsBtn = document.getElementById('viewMyDiscussionsBtn');
+            if (viewMyDiscussionsBtn) {
+                viewMyDiscussionsBtn.addEventListener('click', () => {
+                    // Select the "My Posts" filter button and trigger a click
+                    const myPostsBtn = document.querySelector('.discussion-filter-btn[data-filter="my"]');
+                    if (myPostsBtn) myPostsBtn.click();
+                });
+            }
+
+            // Filter buttons
+            const filterButtons = document.querySelectorAll('.discussion-filter-btn');
+            filterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Update active state
+                    filterButtons.forEach(btn => {
+                        btn.classList.remove('bg-primary', 'text-white');
+                        btn.classList.add('bg-gray-200', 'dark:bg-gray-700');
+                    });
+                    button.classList.remove('bg-gray-200', 'dark:bg-gray-700');
+                    button.classList.add('bg-primary', 'text-white');
+
+                    const filter = button.dataset.filter;
+                    const items = document.querySelectorAll('.discussion-item');
+
+                    items.forEach(item => {
+                        if (filter === 'all') {
+                            item.classList.remove('hidden');
+                        } else if (filter === 'unread') {
+                            // In a real app, you would check if the discussion is read
+                            // For now, we'll just show all
+                            item.classList.remove('hidden');
+                        } else if (filter === 'my') {
+                            const isMyPost = item.dataset.mypost === 'true';
+                            item.classList.toggle('hidden', !isMyPost);
+                        }
+                    });
+
+                    // Apply course filter if selected
+                    applyCourseFilter();
+                });
             });
         }
-        
-        // Filter buttons
-        const filterButtons = document.querySelectorAll('.discussion-filter-btn');
-        filterButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                // Update active state
-                filterButtons.forEach(btn => {
-                    btn.classList.remove('bg-primary', 'text-white');
-                    btn.classList.add('bg-gray-200', 'dark:bg-gray-700');
-                });
-                button.classList.remove('bg-gray-200', 'dark:bg-gray-700');
-                button.classList.add('bg-primary', 'text-white');
-                
-                const filter = button.dataset.filter;
-                const items = document.querySelectorAll('.discussion-item');
-                
-                items.forEach(item => {
-                    if (filter === 'all') {
-                        item.classList.remove('hidden');
-                    } else if (filter === 'unread') {
-                        // In a real app, you would check if the discussion is read
-                        // For now, we'll just show all
-                        item.classList.remove('hidden');
-                    } else if (filter === 'my') {
-                        const isMyPost = item.dataset.mypost === 'true';
-                        item.classList.toggle('hidden', !isMyPost);
-                    }
-                });
-                
-                // Apply course filter if selected
-                applyCourseFilter();
-            });
-        });
-    }
         // Course filter
         const courseFilter = document.getElementById('courseFilter');
         if (courseFilter) {
             courseFilter.addEventListener('change', applyCourseFilter);
         }
-        
+
         function applyCourseFilter() {
             const courseId = courseFilter.value;
             const items = document.querySelectorAll('.discussion-item:not(.hidden)');
-            
+
             items.forEach(item => {
                 if (courseId === 'all') {
                     item.classList.remove('hidden-by-course');
@@ -4711,12 +4837,12 @@ async function loadDiscussions() {
                     const itemCourseId = item.dataset.course;
                     item.classList.toggle('hidden-by-course', itemCourseId !== courseId);
                 }
-                
+
                 // Finally check both filters
                 item.style.display = (item.classList.contains('hidden') || item.classList.contains('hidden-by-course')) ? 'none' : '';
             });
         }
-         
+
         // Sort dropdown
         const discussionSort = document.getElementById('discussionSort');
         if (discussionSort) {
@@ -4724,12 +4850,12 @@ async function loadDiscussions() {
                 const sortValue = discussionSort.value;
                 const discussionsList = document.getElementById('discussionsList');
                 const items = Array.from(discussionsList.querySelectorAll('.discussion-item'));
-                
+
                 // Sort the items
                 items.sort((a, b) => {
                     const aData = discussions.find(d => d._id === a.getAttribute('onclick').match(/discussionId: '([^']+)'/)[1]);
                     const bData = discussions.find(d => d._id === b.getAttribute('onclick').match(/discussionId: '([^']+)'/)[1]);
-                    
+
                     if (sortValue === 'latest') {
                         return new Date(bData.createdAt) - new Date(aData.createdAt);
                     } else if (sortValue === 'oldest') {
@@ -4741,36 +4867,36 @@ async function loadDiscussions() {
                     }
                     return 0;
                 });
-                
+
                 // Re-append the items in the new order
                 items.forEach(item => discussionsList.appendChild(item));
             });
         }
-        
+
         // Search input
         const searchInput = document.getElementById('searchDiscussions');
         if (searchInput) {
             searchInput.addEventListener('input', () => {
                 const searchTerm = searchInput.value.toLowerCase();
                 const items = document.querySelectorAll('.discussion-item');
-                
+
                 items.forEach(item => {
                     const title = item.querySelector('h4').textContent.toLowerCase();
                     const content = item.querySelector('p.line-clamp-2').textContent.toLowerCase();
                     const hasMatch = title.includes(searchTerm) || content.includes(searchTerm);
-                    
+
                     item.classList.toggle('hidden-by-search', !hasMatch);
-                    
+
                     // Check all filter states
                     item.style.display = (
-                        item.classList.contains('hidden') || 
+                        item.classList.contains('hidden') ||
                         item.classList.contains('hidden-by-course') ||
                         item.classList.contains('hidden-by-search')
                     ) ? 'none' : '';
                 });
             });
         }
-        
+
         // Load more button
         const loadMoreBtn = document.getElementById('loadMoreBtn');
         if (loadMoreBtn) {
@@ -4782,15 +4908,15 @@ async function loadDiscussions() {
                 loadMoreBtn.classList.add('opacity-50', 'cursor-not-allowed');
             });
         }
-        
+
     } catch (error) {
         console.error('Error loading discussions:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading discussions</p>
                 <p>${error.message || 'Failed to load discussions'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadView('discussions')">
-                    Try Again
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadLoginPage()">
+                    Retry
                 </button>
             </div>
         `;
@@ -4803,7 +4929,7 @@ function showNewDiscussionModal() {
     courseService.getMyCourses()
         .then(response => {
             const courses = response.data.courses;
-            
+
             // Show modal for creating a new discussion
             const modalHtml = `
                 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -4851,21 +4977,21 @@ function showNewDiscussionModal() {
                     </div>
                 </div>
             `;
-            
+
             // Add modal to the document
             const modalContainer = document.createElement('div');
             modalContainer.innerHTML = modalHtml;
             document.body.appendChild(modalContainer);
-            
+
             // Setup event listeners
             document.getElementById('closeDiscussionModal').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
             });
-            
+
             document.getElementById('cancelDiscussionBtn').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
             });
-            
+
             // Set current course if we're in a course context
             if (currentCourse) {
                 const courseSelect = document.getElementById('discussionCourse');
@@ -4874,22 +5000,22 @@ function showNewDiscussionModal() {
                     option.selected = true;
                 }
             }
-            
+
             // Setup form submission
             document.getElementById('createDiscussionForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                
+
                 try {
                     const discussionData = {
                         title: document.getElementById('discussionTitle').value,
                         content: document.getElementById('discussionContent').value,
                         course: document.getElementById('discussionCourse').value
                     };
-                    
+
                     await discussionService.createDiscussion(discussionData);
                     document.body.removeChild(modalContainer);
                     showToast(`Discussion created successfully!`);
-                    
+
                     // Reload discussions view
                     loadView('discussions');
                 } catch (error) {
@@ -4912,28 +5038,28 @@ async function loadAssignments() {
         // Fetch all assignments
         const assignmentsResponse = await assignmentService.getAllAssignments();
         const assignments = assignmentsResponse.data.assignments;
-        
+
         // Get all courses for filter
         const coursesResponse = await courseService.getMyCourses();
         const courses = coursesResponse.data.courses;
-        
+
         // Group assignments by status
         const upcomingAssignments = []; // Not due yet
         const missedAssignments = [];   // Past due without submission
         const submittedAssignments = []; // Submitted but not graded
         const gradedAssignments = [];   // Submitted and graded
-        
+
         // For instructors, track assignments needing grading
         const assignmentsToGrade = [];
         const pastDueAssignments = [];  // Past due assignments (instructor view)
-        
+
         // Process each assignment
         for (const assignment of assignments) {
             // Get the current date for comparison
             const currentDate = new Date();
             const dueDate = new Date(assignment.dueDate);
             const isPastDue = dueDate < currentDate;
-            
+
             // Check if the assignment has submissions
             let submissions = [];
             try {
@@ -4942,22 +5068,22 @@ async function loadAssignments() {
             } catch (error) {
                 console.warn(`Could not fetch submissions for assignment ${assignment._id}:`, error);
             }
-            
+
             // Store all submissions with the assignment for reference
             assignment.submissions = submissions;
-            
+
             // Different processing based on user role
             if (currentUser.role === 'student') {
                 // Find the student's own submission
-                const mySubmission = submissions.find(s => 
-                    (typeof s.student === 'object' && s.student._id === currentUser._id) || 
+                const mySubmission = submissions.find(s =>
+                    (typeof s.student === 'object' && s.student._id === currentUser._id) ||
                     s.student === currentUser._id
                 );
-                
+
                 if (mySubmission) {
                     // Store submission with assignment for reference
                     assignment.mySubmission = mySubmission;
-                    
+
                     if (mySubmission.status === 'graded' || mySubmission.grade) {
                         // Assignment is graded
                         assignment.myGrade = mySubmission.grade;
@@ -4979,25 +5105,25 @@ async function loadAssignments() {
                 }
             } else if (currentUser.role === 'instructor') {
                 // For instructors, check if this is their course
-                const isInstructorCourse = assignment.course.instructor === currentUser._id || 
-                                          (typeof assignment.course.instructor === 'object' && 
-                                           assignment.course.instructor._id === currentUser._id);
-                
+                const isInstructorCourse = assignment.course.instructor === currentUser._id ||
+                    (typeof assignment.course.instructor === 'object' &&
+                        assignment.course.instructor._id === currentUser._id);
+
                 if (!isInstructorCourse) {
                     // Skip assignments for courses where user is not the instructor
                     continue;
                 }
-                
+
                 // Check for ungraded submissions
-                const ungradedSubmissions = submissions.filter(s => 
+                const ungradedSubmissions = submissions.filter(s =>
                     !s.status || s.status !== 'graded' || !s.grade
                 );
-                
+
                 if (ungradedSubmissions.length > 0) {
                     assignment.ungradedCount = ungradedSubmissions.length;
                     assignmentsToGrade.push(assignment);
                 }
-                
+
                 // Categorize by due date for instructors
                 if (isPastDue) {
                     pastDueAssignments.push(assignment);
@@ -5006,7 +5132,7 @@ async function loadAssignments() {
                 }
             }
         }
-        
+
         // Sort assignments by due date
         upcomingAssignments.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
         missedAssignments.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
@@ -5014,7 +5140,7 @@ async function loadAssignments() {
         gradedAssignments.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
         assignmentsToGrade.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
         pastDueAssignments.sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
-        
+
         content.innerHTML = `
             <div class="flex flex-wrap justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">Assignments</h2>
@@ -5079,21 +5205,21 @@ async function loadAssignments() {
                                 </thead>
                                 <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                     ${upcomingAssignments.map(assignment => {
-                                        const course = assignment.course;
-                                        const daysLeft = Math.ceil((new Date(assignment.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
-                                        let statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-                                        let statusText = 'Upcoming';
-                                        
-                                        if (daysLeft <= 1) {
-                                            statusClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-                                            statusText = 'Due Soon';
-                                        }
-                                        
-                                        const courseId = typeof course === 'object' ? course._id : course;
-                                        const courseCode = typeof course === 'object' ? course.code : 'Course';
-                                        const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
-                                        
-                                        return `
+            const course = assignment.course;
+            const daysLeft = Math.ceil((new Date(assignment.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+            let statusClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+            let statusText = 'Upcoming';
+
+            if (daysLeft <= 1) {
+                statusClass = 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+                statusText = 'Due Soon';
+            }
+
+            const courseId = typeof course === 'object' ? course._id : course;
+            const courseCode = typeof course === 'object' ? course.code : 'Course';
+            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
+
+            return `
                                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 assignment-row" data-course="${courseId}">
                                                 <td class="px-4 py-4">
                                                     <p class="font-medium">${assignment.title}</p>
@@ -5135,7 +5261,7 @@ async function loadAssignments() {
                                                 </td>
                                             </tr>
                                         `;
-                                    }).join('')}
+        }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -5164,13 +5290,13 @@ async function loadAssignments() {
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                         ${missedAssignments.map(assignment => {
-                                            const course = assignment.course;
-                                            const courseId = typeof course === 'object' ? course._id : course;
-                                            const courseCode = typeof course === 'object' ? course.code : 'Course';
-                                            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
-                                            const daysPast = Math.ceil((new Date() - new Date(assignment.dueDate)) / (1000 * 60 * 60 * 24));
-                                            
-                                            return `
+            const course = assignment.course;
+            const courseId = typeof course === 'object' ? course._id : course;
+            const courseCode = typeof course === 'object' ? course.code : 'Course';
+            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
+            const daysPast = Math.ceil((new Date() - new Date(assignment.dueDate)) / (1000 * 60 * 60 * 24));
+
+            return `
                                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 assignment-row" data-course="${courseId}">
                                                     <td class="px-4 py-4">
                                                         <p class="font-medium">${assignment.title}</p>
@@ -5201,7 +5327,7 @@ async function loadAssignments() {
                                                     </td>
                                                 </tr>
                                             `;
-                                        }).join('')}
+        }).join('')}
                                     </tbody>
                                 </table>
                             </div>
@@ -5229,16 +5355,16 @@ async function loadAssignments() {
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                         ${submittedAssignments.map(assignment => {
-                                            const course = assignment.course;
-                                            const courseId = typeof course === 'object' ? course._id : course;
-                                            const courseCode = typeof course === 'object' ? course.code : 'Course';
-                                            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
-                                            
-                                            const submission = assignment.mySubmission;
-                                            const submittedDate = formatDate(submission.submittedAt);
-                                            const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
-                                            
-                                            return `
+            const course = assignment.course;
+            const courseId = typeof course === 'object' ? course._id : course;
+            const courseCode = typeof course === 'object' ? course.code : 'Course';
+            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
+
+            const submission = assignment.mySubmission;
+            const submittedDate = formatDate(submission.submittedAt);
+            const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
+
+            return `
                                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 assignment-row" data-course="${courseId}">
                                                     <td class="px-4 py-4">
                                                         <p class="font-medium">${assignment.title}</p>
@@ -5267,7 +5393,7 @@ async function loadAssignments() {
                                                     </td>
                                                 </tr>
                                             `;
-                                        }).join('')}
+        }).join('')}
                                     </tbody>
                                 </table>
                             </div>
@@ -5295,22 +5421,22 @@ async function loadAssignments() {
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                         ${gradedAssignments.map(assignment => {
-                                            const course = assignment.course;
-                                            const courseId = typeof course === 'object' ? course._id : course;
-                                            const courseCode = typeof course === 'object' ? course.code : 'Course';
-                                            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
-                                            
-                                            const grade = assignment.myGrade;
-                                            const scorePercentage = (grade.score / assignment.pointsPossible) * 100;
-                                            
-                                            let gradeClass = 'text-green-500';
-                                            if (scorePercentage < 60) {
-                                                gradeClass = 'text-red-500';
-                                            } else if (scorePercentage < 80) {
-                                                gradeClass = 'text-yellow-500';
-                                            }
-                                            
-                                            return `
+            const course = assignment.course;
+            const courseId = typeof course === 'object' ? course._id : course;
+            const courseCode = typeof course === 'object' ? course.code : 'Course';
+            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
+
+            const grade = assignment.myGrade;
+            const scorePercentage = (grade.score / assignment.pointsPossible) * 100;
+
+            let gradeClass = 'text-green-500';
+            if (scorePercentage < 60) {
+                gradeClass = 'text-red-500';
+            } else if (scorePercentage < 80) {
+                gradeClass = 'text-yellow-500';
+            }
+
+            return `
                                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 assignment-row" data-course="${courseId}">
                                                     <td class="px-4 py-4">
                                                         <p class="font-medium">${assignment.title}</p>
@@ -5339,7 +5465,7 @@ async function loadAssignments() {
                                                     </td>
                                                 </tr>
                                             `;
-                                        }).join('')}
+        }).join('')}
                                     </tbody>
                                 </table>
                             </div>
@@ -5351,7 +5477,7 @@ async function loadAssignments() {
             ` : `
                 <!-- Past Due Assignments Tab (Instructor) -->
                 <div id="pastDueTab-content" class="assignment-tab-content hidden">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
+                    <div class="bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
                         <h3 class="text-lg font-semibold mb-4">Past Due Assignments</h3>
                         ${pastDueAssignments.length > 0 ? `
                             <div class="overflow-x-auto">
@@ -5367,16 +5493,16 @@ async function loadAssignments() {
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                         ${pastDueAssignments.map(assignment => {
-                                            const course = assignment.course;
-                                            const courseId = typeof course === 'object' ? course._id : course;
-                                            const courseCode = typeof course === 'object' ? course.code : 'Course';
-                                            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
-                                            
-                                            const daysPast = Math.ceil((new Date() - new Date(assignment.dueDate)) / (1000 * 60 * 60 * 24));
-                                            const totalSubmissions = assignment.submissions?.length || 0;
-                                            const totalStudents = typeof course === 'object' && course.students ? course.students.length : 0;
-                                            
-                                            return `
+            const course = assignment.course;
+            const courseId = typeof course === 'object' ? course._id : course;
+            const courseCode = typeof course === 'object' ? course.code : 'Course';
+            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
+
+            const daysPast = Math.ceil((new Date() - new Date(assignment.dueDate)) / (1000 * 60 * 60 * 24));
+            const totalSubmissions = assignment.submissions?.length || 0;
+            const totalStudents = typeof course === 'object' && course.students ? course.students.length : 0;
+
+            return `
                                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 assignment-row" data-course="${courseId}">
                                                     <td class="px-4 py-4">
                                                         <p class="font-medium">${assignment.title}</p>
@@ -5413,7 +5539,7 @@ async function loadAssignments() {
                                                     </td>
                                                 </tr>
                                             `;
-                                        }).join('')}
+        }).join('')}
                                     </tbody>
                                 </table>
                             </div>
@@ -5441,16 +5567,16 @@ async function loadAssignments() {
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                                         ${assignmentsToGrade.map(assignment => {
-                                            const course = assignment.course;
-                                            const courseId = typeof course === 'object' ? course._id : course;
-                                            const courseCode = typeof course === 'object' ? course.code : 'Course';
-                                            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
-                                            
-                                            const ungradedCount = assignment.ungradedCount;
-                                            const totalSubmissions = assignment.submissions?.length || 0;
-                                            const isPastDue = new Date(assignment.dueDate) < new Date();
-                                            
-                                            return `
+            const course = assignment.course;
+            const courseId = typeof course === 'object' ? course._id : course;
+            const courseCode = typeof course === 'object' ? course.code : 'Course';
+            const courseColor = typeof course === 'object' ? (course.color || 'var(--tw-colors-blue-500)') : 'var(--tw-colors-blue-500)';
+
+            const ungradedCount = assignment.ungradedCount;
+            const totalSubmissions = assignment.submissions?.length || 0;
+            const isPastDue = new Date(assignment.dueDate) < new Date();
+
+            return `
                                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-750 assignment-row" data-course="${courseId}">
                                                     <td class="px-4 py-4">
                                                         <p class="font-medium">${assignment.title}</p>
@@ -5479,7 +5605,7 @@ async function loadAssignments() {
                                                     </td>
                                                 </tr>
                                             `;
-                                        }).join('')}
+        }).join('')}
                                     </tbody>
                                 </table>
                             </div>
@@ -5490,16 +5616,16 @@ async function loadAssignments() {
                 </div>
             `}
         `;
-        
+
         // Setup event listeners
-        
+
         // Course filter
         const courseFilter = document.getElementById('courseFilter');
         if (courseFilter) {
             courseFilter.addEventListener('change', (e) => {
                 const courseId = e.target.value;
                 const rows = document.querySelectorAll('.assignment-row');
-                
+
                 rows.forEach(row => {
                     if (courseId === 'all' || row.dataset.course === courseId) {
                         row.classList.remove('hidden');
@@ -5509,7 +5635,7 @@ async function loadAssignments() {
                 });
             });
         }
-        
+
         // Tab navigation
         const tabs = document.querySelectorAll('.assignment-tab');
         tabs.forEach(tab => {
@@ -5521,7 +5647,7 @@ async function loadAssignments() {
                 });
                 tab.classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
                 tab.classList.add('border-primary', 'text-primary', 'dark:text-primaryLight');
-                
+
                 // Show corresponding content
                 const tabId = tab.id;
                 const contentElements = document.querySelectorAll('.assignment-tab-content');
@@ -5534,20 +5660,20 @@ async function loadAssignments() {
                 });
             });
         });
-        
+
         // Create assignment button (for instructors)
         const createAssignmentBtn = document.getElementById('createAssignmentBtn');
         if (createAssignmentBtn) {
             createAssignmentBtn.addEventListener('click', showCreateAssignmentModal);
         }
-        
+
     } catch (error) {
         console.error('Error loading assignments:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading assignments</p>
                 <p>${error.message || 'Failed to load assignments'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadView('assignments')">
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadLoginPage()">
                     Try Again
                 </button>
             </div>
@@ -5561,16 +5687,16 @@ function viewSubmissions(assignmentId) {
     assignmentService.getAssignment(assignmentId)
         .then(async response => {
             const assignment = response.data.assignment;
-            
+
             try {
                 // Fetch submissions
                 const submissionsResponse = await assignmentService.getSubmissions(assignmentId);
                 const submissions = submissionsResponse.data.submissions;
-                
+
                 // Fetch course students
                 const courseResponse = await courseService.getCourse(assignment.course._id);
                 const course = courseResponse.data.course;
-                
+
                 // Create modal for viewing submissions
                 const modalHtml = `
                     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -5621,28 +5747,28 @@ function viewSubmissions(assignmentId) {
                                                 </thead>
                                                 <tbody id="submissionsTableBody" class="divide-y divide-gray-200 dark:divide-gray-700">
                                                     ${submissions.map(submission => {
-                                                        const student = submission.student;
-                                                        const studentName = typeof student === 'object' ? 
-                                                            `${student.firstName} ${student.lastName}` : 'Student';
-                                                        const studentEmail = typeof student === 'object' ? 
-                                                            student.email : '';
-                                                            
-                                                        const submittedDate = formatDate(submission.submittedAt);
-                                                        const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
-                                                        const isGraded = submission.status === 'graded' || submission.grade;
-                                                        
-                                                        let statusBadge = '';
-                                                        if (isGraded) {
-                                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Graded</span>`;
-                                                        } else if (isLate) {
-                                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Late</span>`;
-                                                        } else {
-                                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Submitted</span>`;
-                                                        }
-                                                        
-                                                        const grade = submission.grade || {};
-                                                        
-                                                        return `
+                    const student = submission.student;
+                    const studentName = typeof student === 'object' ?
+                        `${student.firstName} ${student.lastName}` : 'Student';
+                    const studentEmail = typeof student === 'object' ?
+                        student.email : '';
+
+                    const submittedDate = formatDate(submission.submittedAt);
+                    const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
+                    const isGraded = submission.status === 'graded' || submission.grade;
+
+                    let statusBadge = '';
+                    if (isGraded) {
+                        statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Graded</span>`;
+                    } else if (isLate) {
+                        statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Late</span>`;
+                    } else {
+                        statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Submitted</span>`;
+                    }
+
+                    const grade = submission.grade || {};
+
+                    return `
                                                             <tr class="submission-row ${isGraded ? 'graded' : 'ungraded'}" data-submission-id="${submission._id}">
                                                                 <td class="px-4 py-4">
                                                                     <div class="flex items-center">
@@ -5679,7 +5805,7 @@ function viewSubmissions(assignmentId) {
                                                                 </td>
                                                             </tr>
                                                         `;
-                                                    }).join('')}
+                }).join('')}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -5689,17 +5815,17 @@ function viewSubmissions(assignmentId) {
                         </div>
                     </div>
                 `;
-                
+
                 // Add modal to DOM
                 const modalContainer = document.createElement('div');
                 modalContainer.innerHTML = modalHtml;
                 document.body.appendChild(modalContainer);
-                
+
                 // Setup event listeners
                 document.getElementById('closeSubmissionsModal').addEventListener('click', () => {
                     document.body.removeChild(modalContainer);
                 });
-                
+
                 // Tab switching
                 const submissionsTabs = document.querySelectorAll('.submissions-tab');
                 submissionsTabs.forEach(tab => {
@@ -5711,7 +5837,7 @@ function viewSubmissions(assignmentId) {
                         });
                         tab.classList.remove('bg-gray-200', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300');
                         tab.classList.add('bg-primary', 'text-white');
-                        
+
                         // Filter submissions
                         const rows = document.querySelectorAll('.submission-row');
                         if (tab.id === 'allSubmissionsTab') {
@@ -5727,18 +5853,18 @@ function viewSubmissions(assignmentId) {
                         }
                     });
                 });
-                
+
                 // View/Grade submission buttons
                 document.querySelectorAll('.view-submission-btn').forEach(button => {
                     button.addEventListener('click', () => {
                         const submissionId = button.dataset.submissionId;
                         const submission = submissions.find(s => s._id === submissionId);
-                        
+
                         // Create submission detail modal
                         showSubmissionDetailModal(submission, assignment);
                     });
                 });
-                
+
             } catch (error) {
                 console.error('Error loading submissions:', error);
                 showToast('Failed to load submissions', 'error');
@@ -5753,13 +5879,13 @@ function viewSubmissions(assignmentId) {
 // Show submission detail modal with grading interface
 function showSubmissionDetailModal(submission, assignment) {
     const student = submission.student;
-    const studentName = typeof student === 'object' ? 
+    const studentName = typeof student === 'object' ?
         `${student.firstName} ${student.lastName}` : 'Student';
-    
+
     const isGraded = submission.status === 'graded' || submission.grade;
     const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
     const grade = submission.grade || {};
-    
+
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
@@ -5849,17 +5975,17 @@ function showSubmissionDetailModal(submission, assignment) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Setup event listeners
     document.getElementById('closeSubmissionDetailModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Edit grade button (for already graded submissions)
     const editGradeBtn = document.getElementById('editGradeBtn');
     if (editGradeBtn) {
@@ -5867,7 +5993,7 @@ function showSubmissionDetailModal(submission, assignment) {
             // Enable the form fields
             document.getElementById('gradeScore').disabled = false;
             document.getElementById('gradeFeedback').disabled = false;
-            
+
             // Replace the edit button with submit button
             const buttonContainer = editGradeBtn.parentElement;
             buttonContainer.innerHTML = `
@@ -5877,36 +6003,36 @@ function showSubmissionDetailModal(submission, assignment) {
             `;
         });
     }
-    
+
     // Handle form submission
     const gradingForm = document.getElementById('gradingForm');
     if (gradingForm) {
         gradingForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const score = parseInt(document.getElementById('gradeScore').value);
             const feedback = document.getElementById('gradeFeedback').value;
             const errorDiv = document.getElementById('gradingError');
-            
+
             // Validate score
             if (isNaN(score) || score < 0 || score > assignment.pointsPossible) {
                 errorDiv.textContent = `Score must be between 0 and ${assignment.pointsPossible}`;
                 errorDiv.classList.remove('hidden');
                 return;
             }
-            
+
             try {
                 errorDiv.classList.add('hidden');
-                
+
                 // Submit grade
                 await assignmentService.gradeSubmission(submission._id, {
                     score,
                     feedback
                 });
-                
+
                 document.body.removeChild(modalContainer);
                 showToast('Assignment graded successfully!');
-                
+
                 // Reload the assignments view to show updated grades
                 loadView('assignments');
             } catch (error) {
@@ -5921,30 +6047,41 @@ function showSubmissionDetailModal(submission, assignment) {
  * Load user profile with activity data and performance analytics
  * @returns {Promise<void>}
  */
-async function loadProfile() {
+async function loadProfile(isRefresh = false) {
     try {
+
         // Show loading state
         content.innerHTML = `
             <div class="flex justify-center items-center min-h-[300px]">
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
-        // Fetch user profile data
-        const userResponse = await userService.getCurrentUser();
-        const userData = userResponse.data.user;
-        
+        let userData;
+        if (!isRefresh) {
+            const response = await userService.getCurrentUser();
+            userData = response.data.user;
+            // Update window.currentUser
+            window.currentUser = userData;
+        } else {
+            // Use existing currentUser data on refresh
+            userData = window.currentUser;
+        }
+
+        if (!userData) {
+            throw new Error('Could not load user data');
+        }
+
         // Fetch additional user activity data
         const activityResponse = await userService.getUserActivity();
         const activityData = activityResponse.data;
-        
+
         // Fetch user's courses
         const coursesResponse = await courseService.getMyCourses();
         const userCourses = coursesResponse.data.courses;
-        
+
         // Prepare data for different user roles
         let roleSpecificData = {};
-        
+
         // For students: fetch grades and assignment stats
         if (userData.role === 'student') {
             try {
@@ -5963,7 +6100,7 @@ async function loadProfile() {
                     courseProgress: []
                 };
             }
-        } 
+        }
         // For instructors: fetch teaching stats
         else if (userData.role === 'instructor') {
             try {
@@ -5983,22 +6120,22 @@ async function loadProfile() {
                 };
             }
         }
-        
+
         // Format account creation date
         const accountCreated = new Date(userData.createdAt);
         const accountAge = Math.floor((new Date() - accountCreated) / (1000 * 60 * 60 * 24)); // days
-        
+
         // Calculate basic stats
         const enrolledCourses = userData.role === 'student' ? userCourses.length : 0;
         const teachingCourses = userData.role === 'instructor' ? userCourses.length : 0;
-        
+
         // Format activity data
         const lastLogin = activityData.lastLogin ? formatDate(activityData.lastLogin) : 'Never';
         const totalLogins = activityData.loginCount || 0;
-        
+
         // Recent activity list
         const recentActivity = activityData.recentActivity || [];
-        
+
         // Build the profile view
         content.innerHTML = `
             <div class="mb-6 flex flex-wrap justify-between items-center">
@@ -6062,23 +6199,23 @@ async function loadProfile() {
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
                         <h3 class="font-semibold text-lg mb-4">Quick Links</h3>
                         <div class="space-y-2">
-                            <a href="#" onclick="event.preventDefault(); loadView('courses');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                            <a href="#" onclick="event.preventDefault(); loadView('courses');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
                                 <i class="fas fa-book mr-3 text-primary dark:text-primaryLight"></i>
                                 <span>My Courses</span>
                             </a>
-                            <a href="#" onclick="event.preventDefault(); loadView('assignments');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                            <a href="#" onclick="event.preventDefault(); loadView('assignments');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
                                 <i class="fas fa-tasks mr-3 text-primary dark:text-primaryLight"></i>
                                 <span>Assignments</span>
                             </a>
-                            <a href="#" onclick="event.preventDefault(); loadView('discussions');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                            <a href="#" onclick="event.preventDefault(); loadView('discussions');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
                                 <i class="fas fa-comments mr-3 text-primary dark:text-primaryLight"></i>
                                 <span>Discussions</span>
                             </a>
-                            <a href="#" onclick="event.preventDefault(); loadView('resources');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                            <a href="#" onclick="event.preventDefault(); loadView('resources');" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
                                 <i class="fas fa-file-alt mr-3 text-primary dark:text-primaryLight"></i>
                                 <span>Resources</span>
                             </a>
-                            <a href="#" onclick="event.preventDefault(); showAccountSettingsModal();" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-750 rounded-lg transition">
+                            <a href="#" onclick="event.preventDefault(); showAccountSettingsModal();" class="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
                                 <i class="fas fa-cog mr-3 text-primary dark:text-primaryLight"></i>
                                 <span>Account Settings</span>
                             </a>
@@ -6182,25 +6319,25 @@ async function loadProfile() {
                             
                             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                                 <!-- Total Students -->
-                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
                                     <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Total Students</p>
                                     <p class="text-2xl font-bold">${roleSpecificData.totalStudents || 0}</p>
                                 </div>
                                 
                                 <!-- Total Courses -->
-                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
                                     <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Courses</p>
                                     <p class="text-2xl font-bold">${roleSpecificData.totalCourses || 0}</p>
                                 </div>
                                 
                                 <!-- Total Resources -->
-                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
                                     <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Resources</p>
                                     <p class="text-2xl font-bold">${roleSpecificData.totalResources || 0}</p>
                                 </div>
                                 
                                 <!-- Total Assignments -->
-                                <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4 text-center">
+                                <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 text-center">
                                     <p class="text-gray-500 dark:text-gray-400 text-sm mb-1">Assignments</p>
                                     <p class="text-2xl font-bold">${roleSpecificData.totalAssignments || 0}</p>
                                 </div>
@@ -6259,8 +6396,8 @@ async function loadProfile() {
                         ${recentActivity.length > 0 ? `
                             <div class="space-y-4">
                                 ${recentActivity.map(activity => {
-                                    const icon = getActivityIcon(activity.type);
-                                    return `
+            const icon = getActivityIcon(activity.type);
+            return `
                                         <div class="flex">
                                             <div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary bg-opacity-10 dark:bg-opacity-20 flex items-center justify-center mr-3">
                                                 <i class="${icon} text-primary dark:text-primaryLight"></i>
@@ -6271,7 +6408,7 @@ async function loadProfile() {
                                             </div>
                                         </div>
                                     `;
-                                }).join('')}
+        }).join('')}
                             </div>
                         ` : `
                             <p class="text-gray-500 dark:text-gray-400">No recent activity to display.</p>
@@ -6288,13 +6425,13 @@ async function loadProfile() {
                         ${userCourses.length > 0 ? `
                             <div class="space-y-3">
                                 ${userCourses.slice(0, 5).map(course => `
-                                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-750 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
+                                    <div class="flex items-center p-3 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-700 transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
                                         <div class="w-12 h-12 rounded flex-shrink-0" style="background-color: ${course.color || '#5D5CDE'}"></div>
                                         <div class="ml-3 flex-1 min-w-0">
                                             <p class="font-medium truncate">${course.name}</p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400 truncate">${course.code}</p>
                                         </div>
-                                        <i class="fas fa-chevron-right text-gray-400"></i>
+                                        <i class="fas fa-chevron-right text-gray-800"></i>
                                     </div>
                                 `).join('')}
                                 
@@ -6311,14 +6448,14 @@ async function loadProfile() {
                                 </div>
                                 <p class="text-gray-700 dark:text-gray-300 mb-2">No courses yet</p>
                                 <p class="text-gray-500 dark:text-gray-400 mb-4">
-                                    ${userData.role === 'student' ? 'Enroll in courses to get started with your learning journey.' : 
-                                      userData.role === 'instructor' ? 'Create your first course to begin teaching.' : 
-                                      'No courses have been created yet.'}
+                                    ${userData.role === 'student' ? 'Enroll in courses to get started with your learning journey.' :
+                userData.role === 'instructor' ? 'Create your first course to begin teaching.' :
+                    'No courses have been created yet.'}
                                 </p>
                                 <button class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition" onclick="loadView('courses')">
-                                    ${userData.role === 'student' ? 'Browse Courses' : 
-                                      userData.role === 'instructor' ? 'Create Course' : 
-                                      'Manage Courses'}
+                                    ${userData.role === 'student' ? 'Browse Courses' :
+                userData.role === 'instructor' ? 'Create Course' :
+                    'Manage Courses'}
                                 </button>
                             </div>
                         `}
@@ -6326,19 +6463,22 @@ async function loadProfile() {
                 </div>
             </div>
         `;
-        
+
         // Set up event listeners
-        
+        const profileImage = document.getElementById('profilePageImage');
+        if (profileImage) {
+            profileImage.src = getProfileImageUrl(userData) + '?t=' + Date.now();
+        }
         // Edit profile button
         document.getElementById('editProfileBtn').addEventListener('click', () => {
             showEditProfileModal(userData);
         });
-        
+
         // Change avatar button
         document.getElementById('changeAvatarBtn').addEventListener('click', () => {
             showChangeAvatarModal();
         });
-        
+
         // View all activity button
         const viewAllActivityBtn = document.getElementById('viewAllActivityBtn');
         if (viewAllActivityBtn) {
@@ -6347,14 +6487,14 @@ async function loadProfile() {
                 showActivityHistoryModal();
             });
         }
-        
+
     } catch (error) {
         console.error('Error loading profile:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading profile</p>
                 <p>${error.message || 'Failed to load profile data'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadProfile()">Retry</button>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadLoginPage()">Retry</button>
             </div>
         `;
     }
@@ -6414,9 +6554,9 @@ function getActivityIcon(activityType) {
 function calculateOnTimeRate(data) {
     const onTime = data.onTimeSubmissions || 0;
     const total = (data.onTimeSubmissions || 0) + (data.lateSubmissions || 0) + (data.missedAssignments || 0);
-    
+
     if (total === 0) return 0;
-    
+
     return Math.round((onTime / total) * 100);
 }
 
@@ -6427,7 +6567,7 @@ function calculateOnTimeRate(data) {
  */
 function getOnTimeRateColor(data) {
     const rate = calculateOnTimeRate(data);
-    
+
     if (rate >= 90) return 'text-green-500';
     if (rate >= 75) return 'text-blue-500';
     if (rate >= 60) return 'text-yellow-500';
@@ -6445,15 +6585,15 @@ function generateSubmissionStatsBar(data) {
     const late = data.lateSubmissions || 0;
     const missed = data.missedAssignments || 0;
     const total = onTime + late + missed;
-    
+
     if (total === 0) {
         return '<div class="bg-gray-400 dark:bg-gray-600 h-4 rounded-full w-full"></div>';
     }
-    
+
     const onTimePercent = (onTime / total) * 100;
     const latePercent = (late / total) * 100;
     const missedPercent = (missed / total) * 100;
-    
+
     return `
         <div class="flex h-4 rounded-full overflow-hidden">
             <div class="bg-green-500 h-4" style="width: ${onTimePercent}%"></div>
@@ -6470,7 +6610,7 @@ function generateSubmissionStatsBar(data) {
  */
 function getStudentBadges(data) {
     const badges = [];
-    
+
     // Total assignments completed badge
     if ((data.completedAssignments || 0) >= 10) {
         badges.push({
@@ -6487,7 +6627,7 @@ function getStudentBadges(data) {
             colorClass: 'bg-blue-100 text-blue-500 dark:bg-blue-900/30 dark:text-blue-300'
         });
     }
-    
+
     // On-time submissions badge
     const onTimeRate = calculateOnTimeRate(data);
     if (onTimeRate >= 90) {
@@ -6498,7 +6638,7 @@ function getStudentBadges(data) {
             colorClass: 'bg-green-100 text-green-500 dark:bg-green-900/30 dark:text-green-300'
         });
     }
-    
+
     // High grades badge
     if ((data.averageGrade || 0) >= 90) {
         badges.push({
@@ -6515,7 +6655,7 @@ function getStudentBadges(data) {
             colorClass: 'bg-yellow-100 text-yellow-500 dark:bg-yellow-900/30 dark:text-yellow-300'
         });
     }
-    
+
     // Course completion badge
     const completedCourses = (data.courseProgress || []).filter(course => course.progress === 100).length;
     if (completedCourses >= 3) {
@@ -6533,7 +6673,7 @@ function getStudentBadges(data) {
             colorClass: 'bg-purple-100 text-purple-500 dark:bg-purple-900/30 dark:text-purple-300'
         });
     }
-    
+
     return badges;
 }
 
@@ -6545,7 +6685,7 @@ function showActivityHistoryModal() {
     userService.getActivityHistory()
         .then(response => {
             const activityHistory = response.data.activities || [];
-            
+
             // Create modal HTML
             const modalHtml = `
                 <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -6560,19 +6700,19 @@ function showActivityHistoryModal() {
                         ${activityHistory.length > 0 ? `
                             <div class="space-y-4">
                                 ${activityHistory.map(activity => {
-                                    const icon = getActivityIcon(activity.type);
-                                    const date = new Date(activity.timestamp);
-                                    const dateString = date.toLocaleDateString('en-US', { 
-                                        year: 'numeric', 
-                                        month: 'short', 
-                                        day: 'numeric' 
-                                    });
-                                    const timeString = date.toLocaleTimeString('en-US', { 
-                                        hour: '2-digit', 
-                                        minute: '2-digit' 
-                                    });
-                                    
-                                    return `
+                const icon = getActivityIcon(activity.type);
+                const date = new Date(activity.timestamp);
+                const dateString = date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                const timeString = date.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return `
                                         <div class="flex items-start p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition">
                                             <div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary bg-opacity-10 dark:bg-opacity-20 flex items-center justify-center mr-3">
                                                 <i class="${icon} text-primary dark:text-primaryLight"></i>
@@ -6583,7 +6723,7 @@ function showActivityHistoryModal() {
                                             </div>
                                         </div>
                                     `;
-                                }).join('')}
+            }).join('')}
                             </div>
                         ` : `
                             <div class="text-center py-8">
@@ -6602,17 +6742,17 @@ function showActivityHistoryModal() {
                     </div>
                 </div>
             `;
-            
+
             // Add modal to DOM
             const modalContainer = document.createElement('div');
             modalContainer.innerHTML = modalHtml;
             document.body.appendChild(modalContainer);
-            
+
             // Set up event listeners
             document.getElementById('closeActivityModal').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
             });
-            
+
             document.getElementById('closeActivityBtn').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
             });
@@ -6675,33 +6815,33 @@ function showEditProfileModal(userData) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up event listeners
     document.getElementById('closeEditProfileModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelEditProfileBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Form submission
     document.getElementById('editProfileForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const firstName = document.getElementById('firstName').value;
         const lastName = document.getElementById('lastName').value;
         const email = document.getElementById('email').value;
         const bio = document.getElementById('bio').value;
         const errorDiv = document.getElementById('editProfileError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         try {
             // Update user profile
             await userService.updateProfile({
@@ -6710,11 +6850,11 @@ function showEditProfileModal(userData) {
                 email,
                 bio
             });
-            
+
             // Close modal and show success message
             document.body.removeChild(modalContainer);
             showToast('Profile updated successfully!');
-            
+
             // Reload profile view to show updated information
             loadProfile();
         } catch (error) {
@@ -6742,9 +6882,10 @@ function showChangeAvatarModal() {
                 <form id="avatarForm" class="space-y-4">
                     <div class="text-center">
                         <div class="mx-auto w-32 h-32 mb-3 relative">
-                            <img id="avatarPreview" src="${getProfileImageUrl(currentUser)}" alt="Profile" class="w-full h-full rounded-full object-cover">
-                            <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition">
-                                <span class="text-white">Select Image</span>
+                            <img id="avatarPreview" src="${getProfileImageUrl(window.currentUser)}" alt="Profile" 
+                                class="w-full h-full rounded-full object-cover border-2 border-gray-200 dark:border-gray-700">
+                            <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-full opacity-0 hover:opacity-100 transition cursor-pointer">
+                                <span class="text-white text-sm">Change Picture</span>
                             </div>
                         </div>
                         <input type="file" id="avatarFile" accept="image/*" class="hidden">
@@ -6758,10 +6899,10 @@ function showChangeAvatarModal() {
                         Maximum file size: 5MB
                     </p>
                     
-                    <div id="avatarError" class="text-red-500 hidden"></div>
+                    <div id="avatarError" class="text-red-500 text-sm text-center hidden"></div>
                     
-                    <div class="flex justify-end pt-2">
-                        <button type="button" id="cancelAvatarBtn" class="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" id="cancelAvatarBtn" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                             Cancel
                         </button>
                         <button type="submit" id="saveAvatarBtn" class="px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition" disabled>
@@ -6772,106 +6913,117 @@ function showChangeAvatarModal() {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
-    // Set up event listeners
-    document.getElementById('closeAvatarModal').addEventListener('click', () => {
-        document.body.removeChild(modalContainer);
-    });
-    
-    document.getElementById('cancelAvatarBtn').addEventListener('click', () => {
-        document.body.removeChild(modalContainer);
-    });
-    
-    // File selection
+
+    // Get elements
     const avatarFile = document.getElementById('avatarFile');
-    const selectBtn = document.getElementById('selectAvatarBtn');
     const preview = document.getElementById('avatarPreview');
+    const selectBtn = document.getElementById('selectAvatarBtn');
     const saveBtn = document.getElementById('saveAvatarBtn');
-    
-    selectBtn.addEventListener('click', () => {
-        avatarFile.click();
-    });
-    
-    // Preview selected image
-    avatarFile.addEventListener('change', () => {
+    const errorDiv = document.getElementById('avatarError');
+    const previewContainer = preview.parentElement;
+
+    // Close modal handlers
+    const closeModal = () => document.body.removeChild(modalContainer);
+    document.getElementById('closeAvatarModal').onclick = closeModal;
+    document.getElementById('cancelAvatarBtn').onclick = closeModal;
+
+    // Trigger file input when clicking preview or select button
+    previewContainer.onclick = () => avatarFile.click();
+    selectBtn.onclick = () => avatarFile.click();
+
+    // Handle file selection
+    avatarFile.onchange = () => {
         const file = avatarFile.files[0];
-        const errorDiv = document.getElementById('avatarError');
-        
         errorDiv.classList.add('hidden');
-        
-        if (file) {
-            // Check file size (5MB max)
-            if (file.size > 5 * 1024 * 1024) {
-                errorDiv.textContent = 'File size exceeds the 5MB limit.';
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-            
-            // Check file type
-            if (!file.type.match('image.*')) {
-                errorDiv.textContent = 'Please select an image file.';
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-            
-            // Show preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                preview.src = e.target.result;
-                saveBtn.disabled = false;
-            };
-            reader.readAsDataURL(file);
+        saveBtn.disabled = true;
+
+        if (!file) return;
+
+        // Validate file size (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            errorDiv.textContent = 'File size must be less than 5MB';
+            errorDiv.classList.remove('hidden');
+            avatarFile.value = '';
+            return;
         }
-    });
-    
-    // Form submission
-    document.getElementById('avatarForm').addEventListener('submit', async (e) => {
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            errorDiv.textContent = 'Please select an image file';
+            errorDiv.classList.remove('hidden');
+            avatarFile.value = '';
+            return;
+        }
+
+        // Preview image
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            preview.src = e.target.result;
+            saveBtn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Handle form submission
+    document.getElementById('avatarForm').onsubmit = async (e) => {
         e.preventDefault();
-        
+
         const file = avatarFile.files[0];
-        const errorDiv = document.getElementById('avatarError');
-        
         if (!file) {
-            errorDiv.textContent = 'Please select an image file.';
+            errorDiv.textContent = 'Please select an image file';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         // Show loading state
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
-        
+        errorDiv.classList.add('hidden');
+
         try {
-            // Create form data for file upload
             const formData = new FormData();
             formData.append('avatar', file);
-            
+
             // Upload avatar
-            await userService.updateAvatar(formData);
-            
-            // Close modal and show success message
-            document.body.removeChild(modalContainer);
+            const response = await userService.updateAvatar(formData);
+
+            // Update current user data
+            if (response.data && response.data.user) {
+                window.currentUser = response.data.user;
+
+                // Update all profile images immediately
+                const newAvatarUrl = getProfileImageUrl(window.currentUser);
+                document.querySelectorAll('[data-user-avatar]').forEach(img => {
+                    img.src = newAvatarUrl + '?t=' + Date.now();
+                });
+            }
+
+            // Close modal
+            closeModal();
             showToast('Profile picture updated successfully!');
-            
-            // Reload profile view to show updated avatar
-            loadProfile();
+
+            // Wait a brief moment before reloading profile
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Reload profile if we're on the profile page
+            if (currentView === 'profile') {
+                await loadProfile(true); // Pass true to indicate this is a refresh
+            }
+
         } catch (error) {
             console.error('Error updating avatar:', error);
-            errorDiv.textContent = error.message || 'Failed to update profile picture. Please try again.';
+            errorDiv.textContent = error.message || 'Failed to update profile picture';
             errorDiv.classList.remove('hidden');
-            
-            // Reset button
             saveBtn.disabled = false;
             saveBtn.innerHTML = 'Save Changes';
         }
-    });
+    };
 }
-
 /**
  * Show account settings modal
  */
@@ -6936,39 +7088,39 @@ function showAccountSettingsModal() {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+
     // Set up close button event listeners
     document.getElementById('closeSettingsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('closeSettingsBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Change password button
     document.getElementById('changePasswordBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showChangePasswordModal();
     });
-    
+
     // Email settings button
     document.getElementById('emailSettingsBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showEmailSettingsModal();
     });
-    
+
     // Language settings button
     document.getElementById('languageSettingsBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         showLanguageSettingsModal();
     });
-    
+
     // Delete account button
     document.getElementById('deleteAccountBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -6988,18 +7140,18 @@ async function loadSettings() {
                 <div class="spinner w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
             </div>
         `;
-        
+
         // Fetch user data and settings
         const userResponse = await userService.getCurrentUser();
         const userData = userResponse.data.user;
-        
+
         // Get current theme preference
         const isDarkMode = document.documentElement.classList.contains('dark');
-        
+
         // Get current language preference
         const currentLanguage = userData.language || 'en';
         const currentRegion = userData.region || 'US';
-        
+
         // Get notification settings
         const notificationSettings = userData.notificationSettings || {
             emailNotifications: true,
@@ -7007,7 +7159,7 @@ async function loadSettings() {
             emailCourseAnnouncements: true,
             emailDiscussionReplies: true
         };
-        
+
         // Define available languages
         const languages = [
             { code: 'en', region: 'US', name: 'English (United States)' },
@@ -7020,7 +7172,7 @@ async function loadSettings() {
             { code: 'zh', region: 'CN', name: '中文 (中国)' },
             { code: 'ja', region: 'JP', name: '日本語 (日本)' }
         ];
-        
+
         // Build the settings page
         content.innerHTML = `
             <div class="mb-6">
@@ -7035,22 +7187,22 @@ async function loadSettings() {
                         <h2 class="font-semibold text-lg mb-4">Settings</h2>
                         
                         <div class="space-y-1">
-                            <button id="generalSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg transition bg-primary bg-opacity-10 text-primary dark:bg-opacity-20 dark:text-primaryLight">
+                            <button id="generalSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg transition bg-primary bg-opacity-10 text-primary dark:hover:bg-gray-700 dark:bg-opacity-20 dark:text-primaryLight">
                                 <i class="fas fa-cog mr-2"></i> General
                             </button>
-                            <button id="appearanceSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                            <button id="appearanceSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                                 <i class="fas fa-palette mr-2"></i> Appearance
                             </button>
-                            <button id="languageSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                            <button id="languageSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                                 <i class="fas fa-globe mr-2"></i> Language
                             </button>
-                            <button id="notificationSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                            <button id="notificationSettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                                 <i class="fas fa-bell mr-2"></i> Notifications
                             </button>
-                            <button id="securitySettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                            <button id="securitySettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                                 <i class="fas fa-shield-alt mr-2"></i> Security
                             </button>
-                            <button id="accessibilitySettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
+                            <button id="accessibilitySettingsBtn" class="settings-category-btn w-full text-left py-2 px-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                                 <i class="fas fa-universal-access mr-2"></i> Accessibility
                             </button>
                         </div>
@@ -7452,43 +7604,43 @@ async function loadSettings() {
             
 
         `;
-        
+
         // Set up event listeners
-        
+
         // Category navigation
         const categoryBtns = document.querySelectorAll('.settings-category-btn');
         const settingsPanels = document.querySelectorAll('.settings-panel');
-        
+
         categoryBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 // Determine which panel to show
                 const targetPanelId = btn.id.replace('Btn', 'Panel');
-                
+
                 // Update active button
                 categoryBtns.forEach(b => {
                     b.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
                     b.classList.add('hover:bg-gray-100', 'dark:hover:bg-gray-750');
                 });
-                
+
                 btn.classList.add('bg-primary', 'bg-opacity-10', 'text-primary', 'dark:bg-opacity-20', 'dark:text-primaryLight');
                 btn.classList.remove('hover:bg-gray-100', 'dark:hover:bg-gray-750');
-                
+
                 // Update visible panel
                 settingsPanels.forEach(panel => {
                     panel.classList.add('hidden');
                 });
-                
+
                 document.getElementById(targetPanelId).classList.remove('hidden');
             });
         });
-        
+
         // General settings save
         document.getElementById('saveGeneralBtn').addEventListener('click', async () => {
             const firstName = document.getElementById('firstName').value;
             const lastName = document.getElementById('lastName').value;
             const email = document.getElementById('email').value;
             const bio = document.getElementById('bio').value;
-            
+
             try {
                 await userService.updateProfile({
                     firstName,
@@ -7496,19 +7648,19 @@ async function loadSettings() {
                     email,
                     bio
                 });
-                
+
                 showToast('General settings updated successfully!');
             } catch (error) {
                 console.error('Error updating profile:', error);
                 showToast('Failed to update profile settings', 'error');
             }
         });
-        
+
         // Avatar change
         document.getElementById('changeAvatarBtn').addEventListener('click', () => {
             showChangeAvatarModal();
         });
-        
+
         // Theme settings
         const themeRadios = document.querySelectorAll('input[name="theme"]');
         themeRadios.forEach(radio => {
@@ -7521,18 +7673,18 @@ async function loadSettings() {
                 }
             });
         });
-        
+
         // Save appearance settings
         document.getElementById('saveAppearanceBtn').addEventListener('click', () => {
             const followSystem = document.getElementById('followSystemTheme').checked;
             const theme = document.querySelector('input[name="theme"]:checked').value;
             const density = document.querySelector('input[name="density"]:checked').value;
-            
+
             // Save theme preference
             localStorage.setItem('theme', theme);
             localStorage.setItem('followSystemTheme', followSystem);
             localStorage.setItem('density', density);
-            
+
             // Apply theme
             if (followSystem) {
                 localStorage.removeItem('theme');
@@ -7548,36 +7700,36 @@ async function loadSettings() {
                     document.documentElement.classList.remove('dark');
                 }
             }
-            
+
             // Apply density
             if (density === 'compact') {
                 document.documentElement.classList.add('compact');
             } else {
                 document.documentElement.classList.remove('compact');
             }
-            
+
             showToast('Appearance settings updated successfully!');
         });
-        
+
         // Language selection
         const languageSelect = document.getElementById('languageSelect');
         languageSelect.addEventListener('change', () => {
             const hausaInfoBox = document.getElementById('hausaInfoBox');
             const [lang, region] = languageSelect.value.split('|');
-            
+
             if (lang === 'ha') {
                 hausaInfoBox.classList.remove('hidden');
             } else {
                 hausaInfoBox.classList.add('hidden');
             }
         });
-        
+
         // Save language settings
         document.getElementById('saveLanguageBtn').addEventListener('click', async () => {
             const [language, region] = document.getElementById('languageSelect').value.split('|');
             const dateFormat = document.getElementById('dateFormatSelect').value;
             const timeFormat = document.getElementById('timeFormatSelect').value;
-            
+
             try {
                 await userService.updateLanguage({
                     language,
@@ -7585,10 +7737,10 @@ async function loadSettings() {
                     dateFormat,
                     timeFormat
                 });
-                
+
                 localStorage.setItem('dateFormat', dateFormat);
                 localStorage.setItem('timeFormat', timeFormat);
-                
+
                 if (language === 'ha') {
                     // Apply Hausa translations
                     applyHausaTranslations();
@@ -7596,7 +7748,7 @@ async function loadSettings() {
                     // Reset to default language
                     resetToDefaultLanguage();
                 }
-                
+
                 showToast('Language settings updated successfully!');
                 location.reload();
             } catch (error) {
@@ -7604,7 +7756,7 @@ async function loadSettings() {
                 showToast('Failed to update language settings', 'error');
             }
         });
-        
+
         // Notification toggles
         const notificationToggles = document.querySelectorAll('.notification-toggle');
         notificationToggles.forEach(toggle => {
@@ -7616,7 +7768,7 @@ async function loadSettings() {
                         t.disabled = true;
                     });
                 }
-                
+
                 // If main toggle is checked, enable all others
                 if (toggle.id === 'emailNotifications' && toggle.checked) {
                     document.querySelectorAll('.notification-toggle:not(#emailNotifications)').forEach(t => {
@@ -7625,7 +7777,7 @@ async function loadSettings() {
                 }
             });
         });
-        
+
         // Browser notifications button
         document.getElementById('browserNotificationsBtn').addEventListener('click', () => {
             // Request notification permission
@@ -7635,7 +7787,7 @@ async function loadSettings() {
                         document.getElementById('browserNotificationsBtn').textContent = 'Enabled';
                         document.getElementById('browserNotificationsBtn').classList.add('bg-green-500');
                         document.getElementById('browserNotificationsBtn').classList.remove('bg-primary');
-                        
+
                         // Show example notification
                         new Notification('Notifications Enabled', {
                             body: 'You will now receive browser notifications for important updates.',
@@ -7645,14 +7797,14 @@ async function loadSettings() {
                 });
             }
         });
-        
+
         // Save notification settings
         document.getElementById('saveNotificationsBtn').addEventListener('click', async () => {
             const emailNotifications = document.getElementById('emailNotifications').checked;
             const emailAssignmentReminders = document.getElementById('emailAssignmentReminders').checked;
             const emailCourseAnnouncements = document.getElementById('emailCourseAnnouncements').checked;
             const emailDiscussionReplies = document.getElementById('emailDiscussionReplies').checked;
-            
+
             try {
                 await userService.updateEmailSettings({
                     emailNotifications,
@@ -7660,101 +7812,101 @@ async function loadSettings() {
                     emailCourseAnnouncements,
                     emailDiscussionReplies
                 });
-                
+
                 showToast('Notification settings updated successfully!');
             } catch (error) {
                 console.error('Error updating notification settings:', error);
                 showToast('Failed to update notification settings', 'error');
             }
         });
-        
+
         // Change password button
         document.getElementById('changePasswordBtn').addEventListener('click', async () => {
             const currentPassword = document.getElementById('currentPassword').value;
             const newPassword = document.getElementById('newPassword').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
-            
+
             if (!currentPassword || !newPassword || !confirmPassword) {
                 showToast('All password fields are required', 'error');
                 return;
             }
-            
+
             if (newPassword !== confirmPassword) {
                 showToast('New passwords do not match', 'error');
                 return;
             }
-            
+
             if (newPassword.length < 8) {
                 showToast('Password must be at least 8 characters long', 'error');
                 return;
             }
-            
+
             try {
                 await userService.updatePassword({
                     currentPassword,
                     newPassword,
                     confirmPassword
                 });
-                
+
                 // Clear password fields
                 document.getElementById('currentPassword').value = '';
                 document.getElementById('newPassword').value = '';
                 document.getElementById('confirmPassword').value = '';
-                
+
                 showToast('Password changed successfully!');
             } catch (error) {
                 console.error('Error changing password:', error);
                 showToast(error.message || 'Failed to change password', 'error');
             }
         });
-        
+
         // View sessions button
         document.getElementById('viewSessionsBtn').addEventListener('click', () => {
             showSessionsModal();
         });
-        
+
         // Delete account button
         document.getElementById('deleteAccountBtn').addEventListener('click', () => {
             showDeleteAccountModal();
         });
-        
+
         // Text size slider
         const textSizeRange = document.getElementById('textSizeRange');
         const textSizePreview = document.getElementById('textSizePreview');
-        
+
         textSizeRange.addEventListener('input', () => {
             const size = textSizeRange.value;
             textSizePreview.style.fontSize = `${size}%`;
         });
-        
+
         // Save accessibility settings
         document.getElementById('saveAccessibilityBtn').addEventListener('click', () => {
             const textSize = document.getElementById('textSizeRange').value;
             const reduceMotion = document.getElementById('reduceMotion').checked;
             const highContrast = document.getElementById('highContrast').checked;
             const dyslexicFont = document.getElementById('dyslexicFont').checked;
-            
+
             // Save settings to localStorage
             localStorage.setItem('textSize', textSize);
             localStorage.setItem('reduceMotion', reduceMotion);
             localStorage.setItem('highContrast', highContrast);
             localStorage.setItem('dyslexicFont', dyslexicFont);
-            
+
             // Apply settings
             document.documentElement.style.fontSize = `${textSize}%`;
-            
+
             if (reduceMotion) {
                 document.documentElement.classList.add('reduce-motion');
             } else {
                 document.documentElement.classList.remove('reduce-motion');
             }
-            
+
             if (highContrast) {
                 document.documentElement.classList.add('high-contrast');
             } else {
                 document.documentElement.classList.remove('high-contrast');
             }
-            
+
             if (dyslexicFont) {
                 document.documentElement.classList.add('dyslexic-font');
                 // Load dyslexic font if not already loaded
@@ -7768,17 +7920,17 @@ async function loadSettings() {
             } else {
                 document.documentElement.classList.remove('dyslexic-font');
             }
-            
+
             showToast('Accessibility settings updated successfully!');
         });
-        
+
     } catch (error) {
         console.error('Error loading settings:', error);
         content.innerHTML = `
             <div class="bg-red-100 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4">
                 <p class="font-medium">Error loading settings</p>
                 <p>${error.message || 'Failed to load settings data'}</p>
-                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadSettings()">Retry</button>
+                <button class="mt-2 px-4 py-2 bg-primary text-white rounded-lg" onclick="loadLoginPage()">Retry</button>
             </div>
         `;
     }
@@ -7833,7 +7985,7 @@ function showChangePasswordModal() {
     // Form submit event
     document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const currentPassword = document.getElementById('currentPassword').value;
         const newPassword = document.getElementById('newPassword').value;
         const confirmNewPassword = document.getElementById('confirmNewPassword').value;

@@ -20,8 +20,18 @@ const userSchema = new mongoose.Schema({
   },
   profilePicture: {
     type: String,
-    default: 'default.jpg'
-  },
+    default: 'default.jpg',
+    validate: {
+        validator: function(value) {
+            // Allow default.jpg or proper file extensions
+            if (value === 'default.jpg') return true;
+            const validExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+            const extension = value.split('.').pop().toLowerCase();
+            return validExtensions.includes(extension);
+        },
+        message: 'Invalid image file format. Supported formats: JPG, JPEG, PNG, GIF'
+    }
+},
   role: {
     type: String,
     enum: ['student', 'instructor', 'admin'],

@@ -1,7 +1,7 @@
 const express = require('express');
 const assignmentController = require('../controllers/assignmentController.js');
 const { protect, restrictTo } = require('../middleware/auth.js');
-const upload = require('../middleware/upload.js');
+const { uploadMultiple } = require('../middleware/upload.js');
 
 const router = express.Router();
 
@@ -23,7 +23,7 @@ router.route('/:id')
   .delete(restrictTo('instructor', 'admin'), assignmentController.deleteAssignment);
 
 // Submission routes
-router.post('/:id/submit', upload.array('files', 5), assignmentController.submitAssignment);
+router.post('/:id/submit', uploadMultiple, assignmentController.submitAssignment);
 router.get('/:id/submissions', assignmentController.getSubmissions);
 router.patch('/submissions/:id/grade', restrictTo('instructor', 'admin'), assignmentController.gradeSubmission);
 

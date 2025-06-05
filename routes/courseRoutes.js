@@ -1,7 +1,7 @@
 const express = require('express');
 const userController = require('../controllers/userController.js');
 const { protect, restrictTo } = require('../middleware/auth.js');
-const upload = require('../middleware/upload.js');
+const { uploadAvatar } = require('../middleware/upload.js');
 const assignmentController = require('../controllers/assignmentController.js');
 const courseController = require('../controllers/courseController.js');
 const discussionController = require('../controllers/discussionController.js');
@@ -18,7 +18,7 @@ router.get('/:courseId/resources', resourceController.getCourseResources);
 // Get assignments
 router.get('/:courseId/assignments', assignmentController.getCourseAssignments);
 // Routes for current user
-router.patch('/updateMe', upload.single('profilePicture'), userController.updateMe);
+router.patch('/updateMe', uploadAvatar, userController.updateMe);
 router.delete('/deleteMe', userController.deleteMe);
 
 // Course routes

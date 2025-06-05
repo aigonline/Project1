@@ -117,6 +117,7 @@ const resourceSchema = new mongoose.Schema(
   }
 );
 
+
 // Indexes for better query performance
 resourceSchema.index({ course: 1 });
 resourceSchema.index({ addedBy: 1 });

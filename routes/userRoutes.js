@@ -3,7 +3,7 @@ const userController = require('../controllers/userController.js');
 const authController = require('../controllers/authController.js');
 const auth = require('../middleware/auth.js'); // Middleware for authentication and authorization
 // Middleware for authentication and authorization
-const upload = require('../middleware/upload.js'); // Middleware for handling file uploads
+const { uploadAvatar } = require('../middleware/upload.js'); // Middleware for handling file uploads
 const router = express.Router();
 
 // Auth routes (not requiring authentication)
@@ -11,8 +11,6 @@ router.post('/signup', authController.signup);
 router.post('/login', authController.login);
 //router.post('/forgotPassword', authController.forgotPassword);
 //router.patch('/resetPassword/:token', authController.resetPassword);
-
-
 
 
 // Current user routes
@@ -29,10 +27,7 @@ router.get('/me/teaching', auth.protect, userController.getInstructorStats);
 router.post('/verifyToken', userController.verifyToken);
 // Avatar upload route
 router.patch(
-    '/updateAvatar',
-    upload.single('avatar'), // 'avatar' is the field name in the form
-    userController.resizeUserPhoto, // Optional middleware to resize the image
-    userController.updateAvatar
+    '/updateAvatar', auth.protect, uploadAvatar, userController.updateAvatar
 );
 
 // Email and notification settings

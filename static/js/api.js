@@ -4,7 +4,7 @@ const API_BASE_URL = window.location.hostname.includes("127.0.0.1")
 : "https://project1-1bz0.onrender.com/api/v1";
 // Store the JWT token
 let token = localStorage.getItem('token') || null;
-let currentUser = null;
+window.currentUser = null;
 
 // Helper for making authenticated requests
 const fetchWithAuth = async (endpoint, options = {}) => {
@@ -49,31 +49,44 @@ const fetchWithoutAuth = async (endpoint, options = {}) => {
         options.headers['Content-Type'] = 'application/json';
     }
    
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-   
-    // If no content (204), return an empty object
-    if (response.status === 204) return {};
-    
-    // Try to parse as JSON
     try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+   
+        // If no content (204), return an empty object
+        if (response.status === 204) return {};
+        
+        // Try to parse as JSON
         const data = await response.json();
         
-        // Handle non-2xx responses
+        // Handle non-2xx responses with proper error messages
         if (!response.ok) {
-            throw new Error(data.message || 'Something went wrong');
+            const error = new Error(data.message || 'Something went wrong');
+            error.status = response.status;
+            error.data = data;
+            throw error;
         }
         
         return data;
-    } catch (jsonError) {
-        // If JSON parsing fails
-        if (!response.ok) {
-            throw new Error(`Request failed with status ${response.status}`);
+    } catch (error) {
+        // Handle network errors
+        if (error.name === 'TypeError' && error.message.includes('NetworkError')) {
+            throw new Error('Unable to connect to the server. Please check your internet connection.');
         }
-        // For successful non-JSON responses, return text
-        return { success: true, message: await response.text() };
+        
+        // Handle JSON parsing errors
+        if (error instanceof SyntaxError) {
+            throw new Error('Invalid response from server. Please try again.');
+        }
+        
+        // If it's our custom error with status, throw it as is
+        if (error.status) {
+            throw error;
+        }
+        
+        // For any other errors
+        throw new Error('An unexpected error occurred. Please try again.');
     }
 };
-
 // Auth services
 const authService = {
     login: async (email, password) => {
@@ -444,8 +457,7 @@ const userService = {
         return await fetchWithAuth('/users/updateAvatar', {
             method: 'PATCH',
             body: formData,
-            formData: true, // Use FormData for file uploads
-            // Don't set Content-Type header for FormData
+            formData: true // Use FormData for file uploads
         });
     },
     
@@ -503,7 +515,9 @@ const announcementService = {
     getCourseAnnouncements: async (courseId) => {
         return await fetchWithAuth(`/announcements/${courseId}`);
     },
-    
+    getAllAnnouncements: async () => {
+        return await fetchWithAuth('/announcements/all');
+    },
     createAnnouncement: async (announcementData) => {
         return await fetchWithAuth('/announcements', {
             method: 'POST',
@@ -541,3 +555,23 @@ const courseLinkService = {
     }
   };
   
+  // Add to api.js
+const reportService = {
+  createReport: async (reportData) => {
+    return await fetchWithAuth('/reports', {
+      method: 'POST',
+      body: JSON.stringify(reportData)
+    });
+  },
+
+  getReports: async () => {
+    return await fetchWithAuth('/reports');
+  },
+
+  updateReportStatus: async (reportId, statusData) => {
+    return await fetchWithAuth(`/reports/${reportId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(statusData)
+    });
+  }
+};
