@@ -139,7 +139,7 @@ function getProfileImageUrl(user) {
     }
     
     // Return default profile image if no profile picture is set
-       return `https://picsum.photos/id/${(user?.firstName?.charCodeAt(0) || 0) % 30 + 1000}/100/100`;
+       return `/uploads/profile/default.png`;
 }
 
 // Capitalize first letter

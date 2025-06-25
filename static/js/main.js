@@ -14,44 +14,44 @@ const toast = document.getElementById('toast');
 const toastMessage = document.getElementById('toastMessage');
 
 // Add to your main.js - code that runs when the page loads
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // Check for course join links in URL
     const urlParams = new URLSearchParams(window.location.search);
     const joinToken = urlParams.get('join');
-    
+
     if (joinToken) {
         // Clear the URL parameter to prevent repeated join attempts on refresh
         window.history.replaceState({}, document.title, window.location.pathname);
-        
+
         // Process the join token after a slight delay to ensure auth is loaded
         setTimeout(() => {
             processCourseJoinLink(joinToken);
         }, 1000);
     }
-    
+
 });
 
 document.addEventListener('DOMContentLoaded', () => {
     const errorMessage = document.getElementById('error-message');
     if (errorMessage && errorMessage.textContent.includes("Session expired")) {
-      // Redirect to login page
-      window.location.href = '/login';
+        // Redirect to login page
+        window.location.href = '/login';
     }
-  });
- 
-        // Remove the item from localStorage to prevent repeated messages
+});
+
+// Remove the item from localStorage to prevent repeated messages
 // Function to process a course join link
 async function processCourseJoinLink(token) {
     try {
         // Show loading indicator
         showToast('Processing enrollment link...', 'info');
-        
+
         // Call the API to join the course
         const response = await courseLinkService.joinViaLink(token);
-        
+
         // Handle successful join
         showToast('Successfully enrolled in course!', 'success');
-        
+
         // Redirect to the joined course
         if (response.data && response.data.course) {
             loadView('course-detail', { courseId: response.data.course._id });
@@ -71,7 +71,7 @@ async function processCourseJoinLink(token) {
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     setupEventListeners();
-    
+
     // Check for dark mode preference
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.classList.add('dark');
@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Initialize app
 async function initializeApp() {
     const joinToken = new URLSearchParams(window.location.search).get('token');
-    
+
 
     if (!await checkAuth()) {
         // Save pending join token if not logged in
@@ -99,24 +99,24 @@ async function initializeApp() {
         loadLoginPage();
         return;
     }
-                setupEventListeners();
-                
-                // Initialize language support
-                initializeLanguage();
-                
-                // Initialize accessibility settings
-                initializeAccessibilitySettings();
-                
-                // Load appropriate view based on URL params or default to dashboard
-                loadView('dashboard');
+    setupEventListeners();
 
-                
+    // Initialize language support
+    initializeLanguage();
+
+    // Initialize accessibility settings
+    initializeAccessibilitySettings();
+
+    // Load appropriate view based on URL params or default to dashboard
+    loadView('dashboard');
+
+
     // Initialize theme based on system preference or saved setting
     initializeTheme();
-    
+
     // User is authenticated; update UI
     updateUserInfo();
-    
+
     // If there's a pending join token (either from URL or local storage), process it
     const tokenToJoin = joinToken || localStorage.getItem('pendingJoinToken');
     if (tokenToJoin) {
@@ -131,7 +131,7 @@ async function initializeApp() {
 function initializeTheme() {
     const followSystem = localStorage.getItem('followSystemTheme') !== 'false';
     const savedTheme = localStorage.getItem('theme');
-    
+
     if (followSystem) {
         // Use system preference
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -139,7 +139,7 @@ function initializeTheme() {
         } else {
             document.documentElement.classList.remove('dark');
         }
-        
+
         // Listen for changes in system preference
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
             if (event.matches) {
@@ -165,17 +165,17 @@ function initializeAccessibilitySettings() {
     // Apply text size
     const textSize = localStorage.getItem('textSize') || '100';
     document.documentElement.style.fontSize = `${textSize}%`;
-    
+
     // Apply reduce motion setting
     if (localStorage.getItem('reduceMotion') === 'true') {
         document.documentElement.classList.add('reduce-motion');
     }
-    
+
     // Apply high contrast setting
     if (localStorage.getItem('highContrast') === 'true') {
         document.documentElement.classList.add('high-contrast');
     }
-    
+
     // Apply dyslexic font setting
     if (localStorage.getItem('dyslexicFont') === 'true') {
         document.documentElement.classList.add('dyslexic-font');
@@ -196,7 +196,7 @@ async function checkAuth() {
     if (!token) {
         return false;
     }
-    
+
     try {
         // Verify token by getting user data
         await authService.getCurrentUser();
@@ -226,21 +226,21 @@ function updateUserInfo(userData = window.currentUser) {
     if (!userData) return;
 
     const newAvatarUrl = getProfileImageUrl(userData);
-    
+
     // Update sidebar profile info
     const sidebarName = document.getElementById('sidebarUserName');
     const sidebarRole = document.getElementById('sidebarUserRole');
     const sidebarImage = document.getElementById('sidebarProfileImage');
-    
+
     if (sidebarName) sidebarName.textContent = `${userData.firstName} ${userData.lastName}`;
     if (sidebarRole) sidebarRole.textContent = capitalizeFirstLetter(userData.role);
     if (sidebarImage) sidebarImage.src = newAvatarUrl;
-    
+
     // Update mobile header image
     const mobileImage = document.getElementById('mobileProfileImage');
     if (mobileImage) mobileImage.src = newAvatarUrl;
-    
-    
+
+
     // Force cache refresh
     const timestamp = new Date().getTime();
     [sidebarImage, mobileImage].forEach(img => {
@@ -255,11 +255,11 @@ function setupEventListeners() {
             e.preventDefault();
             const view = e.currentTarget.dataset.view;
             loadView(view);
-            
+
             // Update active state
             navLinks.forEach(l => l.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-primary', 'dark:text-primaryLight'));
             e.currentTarget.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-primary', 'dark:text-primaryLight');
-            
+
             // Hide sidebar on mobile after navigation
             if (window.innerWidth < 768) {
                 sidebar.classList.add('hidden');
@@ -282,7 +282,7 @@ function setupEventListeners() {
 function toggleSidebar() {
     sidebar.classList.toggle('hidden');
     modalBackdrop.classList.toggle('hidden');
-    
+
     if (!sidebar.classList.contains('hidden')) {
         sidebar.classList.add('fixed', 'top-0', 'left-0', 'z-20', 'h-full');
     } else {
@@ -307,7 +307,7 @@ function showLoading() {
 // Show toast notification
 function showToast(message, type = 'success') {
     toastMessage.textContent = message;
-    
+
     // Set color based on type
     if (type === 'success') {
         toast.classList.remove('border-red-500', 'border-blue-500');
@@ -319,19 +319,19 @@ function showToast(message, type = 'success') {
         toast.classList.remove('border-green-500', 'border-red-500');
         toast.classList.add('border-blue-500');
     }
-    
+
     // Show toast
     toast.classList.remove('hidden');
-    
+
     // Animate in
     setTimeout(() => {
         toast.classList.remove('translate-y-20', 'opacity-0');
     }, 10);
-    
+
     // Hide after 3 seconds
     setTimeout(() => {
         toast.classList.add('translate-y-20', 'opacity-0');
-        
+
         // Remove from DOM after animation completes
         setTimeout(() => {
             toast.classList.add('hidden');
@@ -371,16 +371,16 @@ function loadView(view, params = {}) {
                     loadAssignments().then(resolve).catch(reject); // ✅ Load user-specific assignments
                     break;
                 case 'discussions':
-                    loadDiscussions().then(resolve).catch(reject); 
+                    loadDiscussions().then(resolve).catch(reject);
                     break;
                 case 'discussion-detail':
-                if (!params.discussionId) {
-                    showToast('Discussion ID is required', 'error');
-                    loadDiscussions();
-                    return;
-                }
-                loadDiscussionDetail(params.discussionId);
-                break;
+                    if (!params.discussionId) {
+                        showToast('Discussion ID is required', 'error');
+                        loadDiscussions();
+                        return;
+                    }
+                    loadDiscussionDetail(params.discussionId);
+                    break;
                 case 'resource-detail':
                     if (!params.resourceId) {
                         showToast('Resource ID is required', 'error');
@@ -401,7 +401,7 @@ function loadView(view, params = {}) {
                 case 'join-course':
                     joinCourseViaLink(params.token).then(resolve).catch(reject);
                     break;
-                    
+
                 default:
                     loadDashboard().then(resolve).catch(reject);
             }
@@ -444,7 +444,7 @@ function showEnrollmentModal(course) {
                 </div>
                 
                 <div class="mb-4">
-                    <p class="font-medium">${course.name} (${course.code})</p>
+                    <p class="font-medium" data-user-content="true">${course.name} (${course.code})</p>
                     <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Instructor: ${course.instructor.firstName} ${course.instructor.lastName}</p>
                 </div>
                 
@@ -468,43 +468,45 @@ function showEnrollmentModal(course) {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeEnrollModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelEnrollBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Form submission
     document.getElementById('enrollForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const enrollmentCode = document.getElementById('enrollmentCode').value;
         const errorDiv = document.getElementById('enrollError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         if (!enrollmentCode) {
             errorDiv.textContent = 'Please enter the enrollment code.';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         try {
             // Enroll in course
             await courseService.enrollInCourse({
                 courseId: course._id,
                 enrollmentCode
             });
-            
+
             // Close modal and refresh course
             document.body.removeChild(modalContainer);
             showToast('Successfully enrolled in course!');
@@ -523,7 +525,7 @@ function showAssignmentModal(assignmentId) {
     assignmentService.getAssignment(assignmentId)
         .then(async response => {
             const assignment = response.data.assignment;
-            
+
             // Fetch submissions for this assignment
             let submissions = [];
             try {
@@ -532,54 +534,56 @@ function showAssignmentModal(assignmentId) {
             } catch (error) {
                 console.warn(`Could not fetch submissions for assignment ${assignmentId}:`, error);
             }
-            
+
             // For students: find their own submission (if any)
             let mySubmission = null;
             if (currentUser.role === 'student') {
-                mySubmission = submissions.find(s => 
-                    (typeof s.student === 'object' && s.student._id === currentUser._id) || 
+                mySubmission = submissions.find(s =>
+                    (typeof s.student === 'object' && s.student._id === currentUser._id) ||
                     s.student === currentUser._id
                 );
             }
-            
+
             // Determine assignment state
             const now = new Date();
             const dueDate = new Date(assignment.dueDate);
             const isPastDue = dueDate < now;
             const daysLeft = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
             const daysOverdue = Math.ceil((now - dueDate) / (1000 * 60 * 60 * 24));
-            
+
             // Calculate submission statistics (for instructors)
             const submissionStats = {
                 total: submissions.length,
                 graded: submissions.filter(s => s.status === 'graded' || s.grade).length,
                 late: submissions.filter(s => new Date(s.submittedAt) > dueDate).length
             };
-            
+
             // Course information
             const course = assignment.course;
             const courseCode = typeof course === 'object' ? course.code : 'Course';
-            
+
             // Format for displaying the assignment description with Markdown
-            const formattedDescription = assignment.description ? 
-                marked.parse(assignment.description) : 
+            const formattedDescription = assignment.description ?
+                marked.parse(assignment.description) :
                 'No detailed instructions provided.';
-            
+
             // Create different modal content based on user role
-            const modalContent = currentUser.role === 'student' ? 
+            const modalContent = currentUser.role === 'student' ?
                 generateStudentModal(assignment, mySubmission, isPastDue, daysLeft, daysOverdue, courseCode, formattedDescription) :
                 generateInstructorModal(assignment, submissions, submissionStats, isPastDue, daysLeft, courseCode, formattedDescription);
-            
+
             // Create the modal container
             const modalContainer = document.createElement('div');
             modalContainer.innerHTML = modalContent;
             document.body.appendChild(modalContainer);
-            
+            if (localStorage.getItem('language') === 'ha') {
+                applyHausaTranslations(modalContainer);
+            }
             // Set up shared event listeners
             document.getElementById('closeAssignmentModal').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
             });
-            
+
             // Set up role-specific event listeners
             if (currentUser.role === 'student') {
                 setupStudentEventListeners(assignment, mySubmission, modalContainer);
@@ -599,12 +603,12 @@ function generateStudentModal(assignment, mySubmission, isPastDue, daysLeft, day
     const isGraded = isSubmitted && (mySubmission.status === 'graded' || mySubmission.grade);
     const isLateSubmission = isSubmitted && new Date(mySubmission.submittedAt) > new Date(assignment.dueDate);
     const canSubmitLate = isPastDue && assignment.allowLateSubmissions && !isSubmitted;
-    
+
     return `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">${assignment.title}</h3>
+                    <h3 class="text-xl font-semibold" data-user-content="true">${assignment.title}</h3>
                     <button id="closeAssignmentModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                         <i class="fas fa-times"></i>
                     </button>
@@ -663,7 +667,7 @@ function generateStudentModal(assignment, mySubmission, isPastDue, daysLeft, day
                                 ${assignment.resources.map(resource => `
                                     <div class="flex items-center p-2 bg-gray-50 dark:bg-gray-750 rounded-lg">
                                         <i class="fas fa-file mr-2 text-primary"></i>
-                                        <span class="flex-1">${resource.title || 'Resource'}</span>
+                                        <span class="flex-1" data-user-content="true">${resource.title}</span>${!resource.title ? `<span class="flex-1>Resource</span>` : ''}
                                         <a href="#" class="text-primary hover:underline">View</a>
                                     </div>
                                 `).join('')}
@@ -682,7 +686,7 @@ function generateStudentModal(assignment, mySubmission, isPastDue, daysLeft, day
                                 <div class="mb-4">
                                     <h5 class="text-sm font-medium mb-2">Your Response:</h5>
                                     <div class="p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-                                        <p class="whitespace-pre-line text-gray-800 dark:text-gray-200">${mySubmission.textContent}</p>
+                                        <p data-user-content="true" class="whitespace-pre-line text-gray-800 dark:text-gray-200">${mySubmission.textContent}</p>
                                     </div>
                                 </div>
                             ` : ''}
@@ -718,12 +722,12 @@ function generateStudentModal(assignment, mySubmission, isPastDue, daysLeft, day
                     <!-- Show ungraded submission -->
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
                         <h4 class="font-semibold mb-3">Your Submission</h4>
-                        <div class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4">
+                        <div data-user-content="true" class="bg-gray-50 dark:bg-gray-750 rounded-lg p-4">
                             ${mySubmission.textContent ? `
                                 <div class="mb-4">
                                     <h5 class="text-sm font-medium mb-2">Your Response:</h5>
                                     <div class="p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-                                        <p class="whitespace-pre-line text-gray-800 dark:text-gray-200">${mySubmission.textContent}</p>
+                                        <p data-user-content="true" class="whitespace-pre-line text-gray-800 dark:text-gray-200">${mySubmission.textContent}</p>
                                     </div>
                                 </div>
                             ` : ''}
@@ -813,12 +817,12 @@ function generateStudentModal(assignment, mySubmission, isPastDue, daysLeft, day
 function generateInstructorModal(assignment, submissions, submissionStats, isPastDue, daysLeft, courseCode, formattedDescription) {
     // Determine if instructor can edit the assignment (shouldn't edit after submissions)
     const canEdit = submissions.length === 0;
-    
+
     return `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">${assignment.title}</h3>
+                    <h3 class="text-xl font-semibold" data-user-content="true">${assignment.title}</h3>
                     <div class="flex items-center">
                         ${canEdit ? `
                             <button id="editAssignmentBtn" class="mr-2 text-primary dark:text-primaryLight hover:text-primaryDark dark:hover:text-primaryLight">
@@ -886,7 +890,7 @@ function generateInstructorModal(assignment, submissions, submissionStats, isPas
                                 ${assignment.resources.map(resource => `
                                     <div class="flex items-center p-2 bg-gray-50 dark:bg-gray-750 rounded-lg">
                                         <i class="fas fa-file mr-2 text-primary"></i>
-                                        <span class="flex-1">${resource.title || 'Resource'}</span>
+                                        <span class="flex-1" data-user-content="true">${resource.title}</span>${!resource.title ? `<span class="flex-1">Resource</span>` : ''}
                                         <a href="#" class="text-primary hover:underline">View</a>
                                     </div>
                                 `).join('')}
@@ -932,23 +936,23 @@ function generateInstructorModal(assignment, submissions, submissionStats, isPas
                                 </thead>
                                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                     ${submissions.slice(0, 3).map(submission => {
-                                        const student = submission.student;
-                                        const studentName = typeof student === 'object' ? 
-                                            `${student.firstName} ${student.lastName}` : 'Student';
-                                            
-                                        const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
-                                        const isGraded = submission.status === 'graded' || submission.grade;
-                                        
-                                        let statusBadge = '';
-                                        if (isGraded) {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Graded</span>`;
-                                        } else if (isLate) {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">Late</span>`;
-                                        } else {
-                                            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Submitted</span>`;
-                                        }
-                                        
-                                        return `
+        const student = submission.student;
+        const studentName = typeof student === 'object' ?
+            `${student.firstName} ${student.lastName}` : 'Student';
+
+        const isLate = new Date(submission.submittedAt) > new Date(assignment.dueDate);
+        const isGraded = submission.status === 'graded' || submission.grade;
+
+        let statusBadge = '';
+        if (isGraded) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Graded</span>`;
+        } else if (isLate) {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">Late</span>`;
+        } else {
+            statusBadge = `<span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Submitted</span>`;
+        }
+
+        return `
                                             <tr>
                                                 <td class="px-4 py-2">
                                                     <div class="flex items-center">
@@ -969,7 +973,7 @@ function generateInstructorModal(assignment, submissions, submissionStats, isPas
                                                 </td>
                                             </tr>
                                         `;
-                                    }).join('')}
+    }).join('')}
                                 </tbody>
                             </table>
                             ${submissions.length > 3 ? `
@@ -1001,60 +1005,60 @@ function setupStudentEventListeners(assignment, mySubmission, modalContainer) {
     if (submitForm) {
         submitForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             // Get form data
             const textContent = document.getElementById('submissionText')?.value || '';
             const fileInput = document.getElementById('submissionFile');
             const errorDiv = document.getElementById('submissionError');
-            
+
             // Validate submission based on assignment requirements
             if (assignment.submissionType === 'text' && !textContent.trim()) {
                 errorDiv.textContent = 'Please enter your response before submitting.';
                 errorDiv.classList.remove('hidden');
                 return;
             }
-            
-            if (assignment.submissionType === 'file' && 
+
+            if (assignment.submissionType === 'file' &&
                 (!fileInput || !fileInput.files || fileInput.files.length === 0)) {
                 errorDiv.textContent = 'Please upload at least one file before submitting.';
                 errorDiv.classList.remove('hidden');
                 return;
             }
-            
+
             // Create FormData object
             const formData = new FormData();
             formData.append('textContent', textContent);
-            
+
             // Add files if any
             if (fileInput && fileInput.files.length > 0) {
                 for (let i = 0; i < fileInput.files.length; i++) {
                     formData.append('files', fileInput.files[i]);
                 }
             }
-            
+
             // Submit
             try {
                 errorDiv.classList.add('hidden');
-                
+
                 // Show loading state
                 const submitBtn = submitForm.querySelector('button[type="submit"]');
                 const originalText = submitBtn.innerHTML;
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
-                
+
                 await assignmentService.submitAssignment(assignment._id, formData);
-                
+
                 // Remove modal and show success message
                 document.body.removeChild(modalContainer);
                 showToast('Assignment submitted successfully!');
-                
+
                 // Reload the assignment view
                 loadView('assignments');
             } catch (error) {
                 // Reset button
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
-                
+
                 // Show error
                 errorDiv.textContent = error.message || 'Failed to submit assignment. Please try again.';
                 errorDiv.classList.remove('hidden');
@@ -1068,7 +1072,7 @@ function setupInstructorEventListeners(assignment, submissions, modalContainer) 
     // View all submissions button
     const viewAllSubmissionsBtn = document.getElementById('viewAllSubmissionsBtn');
     const viewAllSubmissionsBtn2 = document.getElementById('viewAllSubmissionsBtn2');
-    
+
     if (viewAllSubmissionsBtn) {
         viewAllSubmissionsBtn.addEventListener('click', () => {
             // Close the current modal
@@ -1077,7 +1081,7 @@ function setupInstructorEventListeners(assignment, submissions, modalContainer) 
             viewSubmissions(assignment._id);
         });
     }
-    
+
     if (viewAllSubmissionsBtn2) {
         viewAllSubmissionsBtn2.addEventListener('click', () => {
             // Close the current modal
@@ -1086,7 +1090,7 @@ function setupInstructorEventListeners(assignment, submissions, modalContainer) 
             viewSubmissions(assignment._id);
         });
     }
-    
+
     // Edit assignment button
     const editAssignmentBtn = document.getElementById('editAssignmentBtn');
     if (editAssignmentBtn) {
@@ -1097,7 +1101,7 @@ function setupInstructorEventListeners(assignment, submissions, modalContainer) 
             showEditAssignmentModal(assignment);
         });
     }
-    
+
     // Export grades button
     const downloadsBtn = document.getElementById('downloadsBtn');
     if (downloadsBtn) {
@@ -1107,13 +1111,13 @@ function setupInstructorEventListeners(assignment, submissions, modalContainer) 
             showToast('CSV export would be downloaded in a production environment. Downloads are not supported in this demo.', 'info');
         });
     }
-    
+
     // Individual submission view/grade buttons
     document.querySelectorAll('.view-submission-btn').forEach(button => {
         button.addEventListener('click', () => {
             const submissionId = button.dataset.submissionId;
             const submission = submissions.find(s => s._id === submissionId);
-            
+
             if (submission) {
                 // Close the current modal
                 document.body.removeChild(modalContainer);
@@ -1127,7 +1131,7 @@ function setupInstructorEventListeners(assignment, submissions, modalContainer) 
 // Utility function to get grade color class based on score
 function getGradeColorClass(score, total) {
     const percentage = (score / total) * 100;
-    
+
     if (percentage >= 90) {
         return 'text-green-500';
     } else if (percentage >= 80) {
@@ -1169,12 +1173,12 @@ function showEditAssignmentModal(assignment) {
                 <form id="editAssignmentForm" class="space-y-4">
                     <div>
                         <label class="block text-gray-700 dark:text-gray-300 mb-2">Assignment Title</label>
-                        <input type="text" id="assignmentTitle" value="${assignment.title}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        <input type="text" data-user-content="true" id="assignmentTitle" value="${assignment.title}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                     </div>
                     
                     <div>
                         <label class="block text-gray-700 dark:text-gray-300 mb-2">Instructions</label>
-                        <textarea id="assignmentDescription" rows="6" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">${assignment.description || ''}</textarea>
+                        <textarea id="assignmentDescription" rows="6" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200" data-user-content="true">${assignment.description || ''}</textarea>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">You can use Markdown formatting</p>
                     </div>
                     
@@ -1223,41 +1227,43 @@ function showEditAssignmentModal(assignment) {
             </div>
         </div>
     `;
-    
+
     // Add to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeEditModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelEditBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
         // Show the assignment modal again
         showAssignmentModal(assignment._id);
     });
-    
+
     document.getElementById('deleteAssignmentBtn').addEventListener('click', async () => {
         if (confirm('Are you sure you want to delete this assignment? This action cannot be undone.')) {
-          try {
-            // Call the API to delete the assignment
-            await assignmentService.deleteAssignment(assignment._id);
-            showToast('Assignment deleted successfully!');
-            // Remove the modal from the DOM
-            document.body.removeChild(modalContainer);
-            // Optionally, refresh the assignments view
-            loadView('assignments');
-          } catch (error) {
-            console.error('Error deleting assignment:', error);
-            showToast(`Failed to delete assignment: ${error.message}`, 'error');
-          }
+            try {
+                // Call the API to delete the assignment
+                await assignmentService.deleteAssignment(assignment._id);
+                showToast('Assignment deleted successfully!');
+                // Remove the modal from the DOM
+                document.body.removeChild(modalContainer);
+                // Optionally, refresh the assignments view
+                loadView('assignments');
+            } catch (error) {
+                console.error('Error deleting assignment:', error);
+                showToast(`Failed to delete assignment: ${error.message}`, 'error');
+            }
         }
-      });
-      
-    
+    });
+
+
     // Form submission
     document.getElementById('editAssignmentForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1268,33 +1274,33 @@ function showEditAssignmentModal(assignment) {
         const pointsPossible = parseInt(document.getElementById('assignmentPoints').value);
         const submissionType = document.getElementById('assignmentSubmissionType').value;
         const allowLateSubmissions = document.getElementById('assignmentAllowLate').checked;
-        
+
         // Create the data object to update
         const assignmentData = {
-          title,
-          description,
-          dueDate,
-          pointsPossible,
-          submissionType,
-          allowLateSubmissions
+            title,
+            description,
+            dueDate,
+            pointsPossible,
+            submissionType,
+            allowLateSubmissions
         };
-      
+
         try {
-          // Call  API to update the assignment.
-          // Make sure assignmentId is defined in the current scope (passed in from the modal, for example)
-          await assignmentService.updateAssignment(assignment._id, assignmentData);
-          
-          showToast('Assignment updated successfully!');
-          document.body.removeChild(modalContainer);
-          
-          // Reload the assignments view to reflect the changes.
-          loadView('assignments');
+            // Call  API to update the assignment.
+            // Make sure assignmentId is defined in the current scope (passed in from the modal, for example)
+            await assignmentService.updateAssignment(assignment._id, assignmentData);
+
+            showToast('Assignment updated successfully!');
+            document.body.removeChild(modalContainer);
+
+            // Reload the assignments view to reflect the changes.
+            loadView('assignments');
         } catch (error) {
-          console.error('Error updating assignment:', error);
-          showToast(`Failed to update assignment: ${error.message}`, 'error');
+            console.error('Error updating assignment:', error);
+            showToast(`Failed to update assignment: ${error.message}`, 'error');
         }
-      });
-      
+    });
+
 }
 // Get submission form HTML
 function getSubmissionForm(assignment) {
@@ -1333,26 +1339,26 @@ async function showUploadResourceModal(courseId) {
     try {
         // Use provided courseId or fall back to the current course if available
         courseId = courseId || (currentCourse ? currentCourse._id : null);
-        
+
         // If no course ID is available, we need to let the user select a course
         let userCourses = [];
         let selectedCourseId = courseId;
-        
+
         if (!courseId) {
             try {
                 // Get courses where user is instructor
                 const coursesResponse = await courseService.getMyCourses();
-                userCourses = coursesResponse.data.courses.filter(course => 
-                    (currentUser.role === 'admin') || 
+                userCourses = coursesResponse.data.courses.filter(course =>
+                    (currentUser.role === 'admin') ||
                     (course.instructor === currentUser._id) ||
                     (typeof course.instructor === 'object' && course.instructor._id === currentUser._id)
                 );
-                
+
                 if (userCourses.length === 0) {
                     showToast('You do not have any courses where you can upload resources.', 'error');
                     return;
                 }
-                
+
                 // Default to the first course
                 selectedCourseId = userCourses[0]._id;
             } catch (error) {
@@ -1361,7 +1367,7 @@ async function showUploadResourceModal(courseId) {
                 return;
             }
         }
-        
+
         // Create and show modal
         const modalHtml = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1379,7 +1385,7 @@ async function showUploadResourceModal(courseId) {
                                 <label class="block text-gray-700 dark:text-gray-300 mb-2">Course</label>
                                 <select id="resourceCourse" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                     ${userCourses.map(course => `
-                                        <option value="${course._id}">${course.name} (${course.code})</option>
+                                        <option data-user-content="true" value="${course._id}">${course.name} (${course.code})</option>
                                     `).join('')}
                                 </select>
                             </div>
@@ -1440,7 +1446,7 @@ async function showUploadResourceModal(courseId) {
                                 <option value="false">Hidden from Students</option>
                             </select>
                         </div>
-                        ` :''}
+                        ` : ''}
                         <div id="resourceError" class="text-red-500 hidden"></div>
                         
                         <div class="flex justify-end pt-2">
@@ -1455,30 +1461,32 @@ async function showUploadResourceModal(courseId) {
                 </div>
             </div>
         `;
-        
+
         // Add modal to DOM
         const modalContainer = document.createElement('div');
         modalContainer.innerHTML = modalHtml;
         document.body.appendChild(modalContainer);
-        
+        if (localStorage.getItem('language') === 'ha') {
+            applyHausaTranslations(modalContainer);
+        }
         // Set up event listeners
-        
+
         // Close modal
         document.getElementById('closeResourceModal').addEventListener('click', () => {
             document.body.removeChild(modalContainer);
         });
-        
+
         document.getElementById('cancelResourceBtn').addEventListener('click', () => {
             document.body.removeChild(modalContainer);
         });
-        
+
         // Handle resource type selection
         const resourceType = document.getElementById('resourceType');
         resourceType.addEventListener('change', (e) => {
             // Hide all resource sections
             document.getElementById('fileUploadSection').classList.add('hidden');
             document.getElementById('linkSection').classList.add('hidden');
-            
+
             // Show the selected section
             const selectedType = e.target.value;
             if (selectedType === 'file') {
@@ -1487,14 +1495,14 @@ async function showUploadResourceModal(courseId) {
                 document.getElementById('linkSection').classList.remove('hidden');
             }
         });
-        
+
         // Handle form submission
         document.getElementById('resourceUploadForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const errorDiv = document.getElementById('resourceError');
             errorDiv.classList.add('hidden');
-            
+
             // Get the selected course ID
             const targetCourseId = courseId || document.getElementById('resourceCourse')?.value;
             if (!targetCourseId) {
@@ -1502,13 +1510,13 @@ async function showUploadResourceModal(courseId) {
                 errorDiv.classList.remove('hidden');
                 return;
             }
-            
+
             // Get common resource data
             const title = document.getElementById('resourceTitle').value;
             const description = document.getElementById('resourceDescription').value;
             const category = document.getElementById('resourceCategory').value;
             const isVisible = document.getElementById('resourceVisibility').value === 'true';
-            
+
             // Validate required fields
             const selectedType = resourceType.value;
             if (!selectedType) {
@@ -1516,14 +1524,14 @@ async function showUploadResourceModal(courseId) {
                 errorDiv.classList.remove('hidden');
                 return;
             }
-            
+
             // Prepare form data (for both file and link resources)
             const formData = new FormData();
             formData.append('title', title);
             formData.append('description', description);
             formData.append('category', category);
             formData.append('isVisible', isVisible);
-            
+
             // Handle resource type-specific data and validation
             if (selectedType === 'file') {
                 const fileInput = document.getElementById('resourceFile');
@@ -1532,7 +1540,7 @@ async function showUploadResourceModal(courseId) {
                     errorDiv.classList.remove('hidden');
                     return;
                 }
-                
+
                 // Check file size (10MB max)
                 const file = fileInput.files[0];
                 if (file.size > 10 * 1024 * 1024) { // 10MB in bytes
@@ -1540,10 +1548,10 @@ async function showUploadResourceModal(courseId) {
                     errorDiv.classList.remove('hidden');
                     return;
                 }
-                
+
                 // Add file to formData
                 formData.append('file', file);
-                
+
             } else if (selectedType === 'link') {
                 const link = document.getElementById('resourceLink').value;
                 if (!link) {
@@ -1551,7 +1559,7 @@ async function showUploadResourceModal(courseId) {
                     errorDiv.classList.remove('hidden');
                     return;
                 }
-                
+
                 // Validate URL format
                 try {
                     new URL(link); // Will throw if invalid
@@ -1562,23 +1570,23 @@ async function showUploadResourceModal(courseId) {
                     return;
                 }
             }
-            
+
             // Update button state
             const uploadBtn = document.getElementById('uploadResourceBtn');
             const originalBtnText = uploadBtn.innerHTML;
             uploadBtn.disabled = true;
             uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Uploading...';
-            
+
             try {
                 // Call the API to create the resource - pass the courseId in the URL parameter
                 await resourceService.createResource(targetCourseId, formData);
-                
+
                 // Close modal
                 document.body.removeChild(modalContainer);
-                
+
                 // Show success message
                 showToast('Resource uploaded successfully!');
-                
+
                 // Refresh the course resources if we're in a course detail view
                 if (currentView === 'course-detail' && currentCourse) {
                     loadCourseDetail(currentCourse._id);
@@ -1591,26 +1599,26 @@ async function showUploadResourceModal(courseId) {
                 console.error('Error uploading resource:', error);
                 errorDiv.textContent = error.message || 'Failed to upload resource. Please try again.';
                 errorDiv.classList.remove('hidden');
-                
+
                 // Reset button state
                 uploadBtn.disabled = false;
                 uploadBtn.innerHTML = originalBtnText;
             }
-            
+
         });
-        
+
     } catch (error) {
         console.error('Error showing upload resource modal:', error);
         showToast('An error occurred. Please try again.', 'error');
     }
-   
-}    
-  
-  /**
- * Show modal to edit a resource
- * @param {string} resourceId - ID of the resource to edit
- * @returns {Promise<void>}
- */
+
+}
+
+/**
+* Show modal to edit a resource
+* @param {string} resourceId - ID of the resource to edit
+* @returns {Promise<void>}
+*/
 async function showEditResourceModal(resourceId) {
     try {
         // Show loading modal
@@ -1622,21 +1630,23 @@ async function showEditResourceModal(resourceId) {
                 </div>
             </div>
         `;
-        
+
         const loadingContainer = document.createElement('div');
         loadingContainer.innerHTML = loadingModalHtml;
         document.body.appendChild(loadingContainer);
-        
+        if (localStorage.getItem('language') === 'ha') {
+            applyHausaTranslations(modalContainer);
+        }
         // Fetch resource data
         const response = await resourceService.getResource(resourceId);
         const resource = response.data.resource;
-        
+
         // Remove loading modal
         document.body.removeChild(loadingContainer);
-        
+
         // Prepare data for the form
         const courseId = typeof resource.course === 'object' ? resource.course._id : resource.course;
-        
+
         // Create edit modal
         const modalHtml = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1737,31 +1747,33 @@ async function showEditResourceModal(resourceId) {
                 </div>
             </div>
         `;
-        
+
         // Add modal to DOM
         const modalContainer = document.createElement('div');
         modalContainer.innerHTML = modalHtml;
         document.body.appendChild(modalContainer);
-        
+        if (localStorage.getItem('language') === 'ha') {
+            applyHausaTranslations(modalContainer);
+        }
         // Set up event listeners
         document.getElementById('closeEditResourceModal').addEventListener('click', () => {
             document.body.removeChild(modalContainer);
         });
-        
+
         document.getElementById('cancelEditResourceBtn').addEventListener('click', () => {
             document.body.removeChild(modalContainer);
         });
-        
+
         // Form submission
         document.getElementById('editResourceForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const title = document.getElementById('resourceTitle').value;
             const description = document.getElementById('resourceDescription').value;
             const category = document.getElementById('resourceCategory').value;
             const isVisible = document.getElementById('resourceVisibility').value === 'true';
             const errorDiv = document.getElementById('editResourceError');
-            
+
             // Resource-type specific fields
             let updateData = {
                 title,
@@ -1769,23 +1781,23 @@ async function showEditResourceModal(resourceId) {
                 category,
                 isVisible
             };
-            
+
             if (resource.type === 'link') {
                 updateData.link = document.getElementById('resourceLink').value;
             } else if (resource.type === 'text') {
                 updateData.content = document.getElementById('resourceContent').value;
             }
-            
+
             errorDiv.classList.add('hidden');
-            
+
             try {
                 // Update the resource
                 await resourceService.updateResource(resourceId, updateData);
-                
+
                 // Close modal and show success message
                 document.body.removeChild(modalContainer);
                 showToast('Resource updated successfully!');
-                
+
                 // Reload the resource detail view
                 loadResourceDetail(resourceId);
             } catch (error) {
@@ -1794,12 +1806,12 @@ async function showEditResourceModal(resourceId) {
                 errorDiv.classList.remove('hidden');
             }
         });
-        
+
     } catch (error) {
         console.error('Error showing edit resource modal:', error);
         showToast('Failed to load resource data for editing', 'error');
     }
-}  
+}
 /**
  * Delete a resource
  * @param {string} resourceId - ID of the resource to delete
@@ -1809,7 +1821,7 @@ async function deleteResource(id) {
     try {
         await resourceService.deleteResource(id);
         showToast('Resource deleted successfully!');
-        
+
         // Redirect to resources list
         loadResources();
     } catch (error) {
@@ -1857,7 +1869,9 @@ function showNewAnnouncementModal() {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Setup event listeners
     document.getElementById('closeAnnouncementModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -1890,14 +1904,14 @@ function showNewAnnouncementModal() {
 async function showCreateAssignmentModal() {
     let courses = [];
     if (currentUser.role === 'instructor') {
-      try {
-        const response = await courseService.getMyCourses();
-        courses = response.data.courses;
-      } catch (error) {
-        console.error("Error fetching courses for assignment modal:", error);
-      }
+        try {
+            const response = await courseService.getMyCourses();
+            courses = response.data.courses;
+        } catch (error) {
+            console.error("Error fetching courses for assignment modal:", error);
+        }
     }
-  
+
     const modalHtml = `
       <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -1925,7 +1939,7 @@ async function showCreateAssignmentModal() {
                 <label class="block text-gray-700 dark:text-gray-300 mb-2">Select Course</label>
                 <select id="assignmentCourse" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                   <option value="">Select a course</option>
-                  ${courses.map(course => `<option value="${course._id}">${course.name} (${course.code})</option>`).join('')}
+                  ${courses.map(course => `<option data-user-content="true" value="${course._id}">${course.name} (${course.code})</option>`).join('')}
                 </select>
               </div>
             ` : ''}
@@ -1967,85 +1981,87 @@ async function showCreateAssignmentModal() {
         </div>
       </div>
     `;
-    
+
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Close modal
     document.getElementById('closeAssignmentModal').addEventListener('click', () => {
-      document.body.removeChild(modalContainer);
+        document.body.removeChild(modalContainer);
     });
-    
+
     // Set default due date to 1 week from now
     const defaultDueDate = new Date();
     defaultDueDate.setDate(defaultDueDate.getDate() + 7);
     document.getElementById('assignmentDueDate').value = defaultDueDate.toISOString().slice(0, 16);
-    
+
     // Pre-select course if currentCourse is defined (for instructors)
     if (currentUser.role === 'instructor' && currentCourse) {
-      const courseSelect = document.getElementById('assignmentCourse');
-      if (courseSelect) {
-        const optionToSelect = Array.from(courseSelect.options).find(opt => opt.value === currentCourse._id);
-        if (optionToSelect) {
-          optionToSelect.selected = true;
+        const courseSelect = document.getElementById('assignmentCourse');
+        if (courseSelect) {
+            const optionToSelect = Array.from(courseSelect.options).find(opt => opt.value === currentCourse._id);
+            if (optionToSelect) {
+                optionToSelect.selected = true;
+            }
         }
-      }
     }
-    
+
     // Setup form submission
     document.getElementById('createAssignmentForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      // Determine the course ID to use
-      let courseId;
-      if (currentUser.role === 'instructor') {
-        const courseSelect = document.getElementById('assignmentCourse');
-        if (courseSelect && courseSelect.value) {
-          courseId = courseSelect.value;
-        } else if (currentCourse && currentCourse._id) {
-          courseId = currentCourse._id;
+        e.preventDefault();
+
+        // Determine the course ID to use
+        let courseId;
+        if (currentUser.role === 'instructor') {
+            const courseSelect = document.getElementById('assignmentCourse');
+            if (courseSelect && courseSelect.value) {
+                courseId = courseSelect.value;
+            } else if (currentCourse && currentCourse._id) {
+                courseId = currentCourse._id;
+            } else {
+                const errorDiv = document.getElementById('assignmentError');
+                errorDiv.textContent = "No course selected for assignment creation.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
         } else {
-          const errorDiv = document.getElementById('assignmentError');
-          errorDiv.textContent = "No course selected for assignment creation.";
-          errorDiv.classList.remove('hidden');
-          return;
+            // For students, currentCourse should exist
+            if (currentCourse && currentCourse._id) {
+                courseId = currentCourse._id;
+            } else {
+                const errorDiv = document.getElementById('assignmentError');
+                errorDiv.textContent = "No course context available.";
+                errorDiv.classList.remove('hidden');
+                return;
+            }
         }
-      } else {
-        // For students, currentCourse should exist
-        if (currentCourse && currentCourse._id) {
-          courseId = currentCourse._id;
-        } else {
-          const errorDiv = document.getElementById('assignmentError');
-          errorDiv.textContent = "No course context available.";
-          errorDiv.classList.remove('hidden');
-          return;
+
+        try {
+            const assignmentData = {
+                title: document.getElementById('assignmentTitle').value,
+                description: document.getElementById('assignmentDescription').value,
+                dueDate: document.getElementById('assignmentDueDate').value,
+                pointsPossible: parseInt(document.getElementById('assignmentPoints').value),
+                submissionType: document.getElementById('assignmentSubmissionType').value,
+                allowLateSubmissions: document.getElementById('assignmentAllowLate').checked,
+                course: courseId
+            };
+
+            await assignmentService.createAssignment(assignmentData);
+            document.body.removeChild(modalContainer);
+            showToast('Assignment created successfully!');
+            loadView('course-detail', { courseId: assignmentData.course });
+        } catch (error) {
+            const errorDiv = document.getElementById('assignmentError');
+            errorDiv.textContent = error.message;
+            errorDiv.classList.remove('hidden');
         }
-      }
-      
-      try {
-        const assignmentData = {
-          title: document.getElementById('assignmentTitle').value,
-          description: document.getElementById('assignmentDescription').value,
-          dueDate: document.getElementById('assignmentDueDate').value,
-          pointsPossible: parseInt(document.getElementById('assignmentPoints').value),
-          submissionType: document.getElementById('assignmentSubmissionType').value,
-          allowLateSubmissions: document.getElementById('assignmentAllowLate').checked,
-          course: courseId
-        };
-        
-        await assignmentService.createAssignment(assignmentData);
-        document.body.removeChild(modalContainer);
-        showToast('Assignment created successfully!');
-        loadView('course-detail', { courseId: assignmentData.course });
-      } catch (error) {
-        const errorDiv = document.getElementById('assignmentError');
-        errorDiv.textContent = error.message;
-        errorDiv.classList.remove('hidden');
-      }
     });
-  }
-  
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const logoutBtn = document.getElementById("logoutBtn");
 
@@ -2066,7 +2082,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Add translation call after loading any view
         const originalLoadView = window.loadView;
-        window.loadView = function(view, params = {}) {
+        window.loadView = function (view, params = {}) {
             const result = originalLoadView(view, params);
             // Check if loadView returns a promise
             if (result && typeof result.then === 'function') {
@@ -2116,6 +2132,7 @@ const hausaTranslations = {
     'This Month': 'Wannan Watan',
     'Next Month': 'Watan Mai Zuwa',
     'April 2025': 'Afrilu 2025',
+
     // General UI
     'Main': 'Mafi Amfani:',
     'Home': 'Gida',
@@ -2132,9 +2149,9 @@ const hausaTranslations = {
     'File': 'Fayil',
     'Welcome back,': 'Barka da dawowa,',
     'Cancel': 'Soke',
-    'Delete': 'Share',
-    'Edit': 'Gyara',
-    'View': 'Duba',
+    'Delete': 'Share Kayan Aiki',
+    'Edit': 'Gyara Kayan Aiki',
+    'View': 'Bude',
     'Search': 'Bincika',
     'Loading': 'lodi...',
     'Submit': 'Tura',
@@ -2147,6 +2164,7 @@ const hausaTranslations = {
     'Upcoming Assignments': 'Ayyukan da ke tafe',
     'Explore more courses': 'Duba Duka darussa',
     'View All': 'Duba Duka',
+    'Welcome back': 'Barka da dawowa',
     'You\'re all caught up!': 'Ka kammala dukkan ayyuka!',
     'No upcoming discussions': 'Babu tattaunawa',
     'No upcoming assignments due.': 'Babu ayyuka masu zuwa.',
@@ -2158,12 +2176,14 @@ const hausaTranslations = {
     'No resources available': 'Babu kayan aiki',
     'No announcements available': 'Babu sanarwa ',
     'No assignments available': 'Babu ayyuka',
-    'Recent Discussions':'Tattaunawa na Kwanan nan',
+    'Recent Discussions': 'Tattaunawa na Kwanan nan',
     'Recent Announcements': 'Sanarwa na Kwanan nan',
+    'No Available Courses': 'Babu Sabbin Darussa',
+    'There are no new courses available for enrollment at this time.': 'A halin yanzu babu sabbin darussa da za a iya rajista.',
 
     // Course related
-    'Course':'Darasi',
-    'My Courses': 'Darussa Na',
+    'Course': 'Darasi',
+    'My Courses': 'Darussa Na ',
     'All Courses': 'Duka Darussa',
     'Course Name': 'Sunan Darasi',
     'Course Description': 'Bayanin Darasi',
@@ -2171,9 +2191,9 @@ const hausaTranslations = {
     'students': 'dalibai',
     'Course Start Date': 'Ranar Fara Darasi',
     'Search courses...': 'Bincika Darussa...',
-    'Available Courses': 'Darussa da Ba\'yi Rajista ba',
+    'Available Courses': 'Darussa da Ba\'yi Rajista ba ',
     'Enroll': 'Yi Rajista',
-    'Course Code': 'Lambar Darasin',
+    'Course Code': 'Lambar Darasi',
     'Instructor': 'Malami',
     'Students': 'Dalibai',
     'Create Course': 'Kirkiri Darasin',
@@ -2181,16 +2201,19 @@ const hausaTranslations = {
     'Course Details': 'Bayanin Darasin',
     'Course Information': 'Bayanin Darasi',
     'View Course Details': 'Duba Cikakken Bayanan Darasi',
-    'Course Settings' : 'Saitin Darasi',
+    'Course Settings': 'Saitin Darasi',
     'Manage Students': 'Yi Manajin Dalibai',
-    'New Announcement' : 'Sabon Sanarwa',
-    'New Assignment' : 'Loda Sabon Aiki',
-    'New Discussion' : 'Sabon Tattaunawa',
+    'New Announcement': 'Sabon Sanarwa',
+    'New Assignment': 'Loda Sabon Aiki',
+    'New Discussion': 'Sabon Tattaunawa',
     'Enrollment Code': 'Lambar Rajista',
-    'Course Link' : 'Linki na Darasi',
+    'Course Link': 'Linki na Darasi',
     'Generate Course Link': 'Kirkiri Linkin Darasi',
-    'Students Enrolled' : 'Dalibai da suka yi rajista',
+    'Students Enrolled': 'Dalibai da suka yi rajista',
     'Past Due': 'Lokaci ya wuce',
+    'About this Course': 'Bayani akan Darasin Nan',
+    'Enroll in Course': 'Yi Rajistan Darasin Nan',
+    'Enter the course Enrollment Code': 'Shigar da Lambar Rajista',
 
     //Resource related
     'Upload Resource': 'Loda Kayan Aiki',
@@ -2200,7 +2223,7 @@ const hausaTranslations = {
     'File Upload': 'Loda Fayil',
     'Filter Resources': 'Tace Kayyayakin Aiki',
     'Search resources...': 'Bincika Kayyayakin Aiki...',
-    'All Resources': 'Duk Kayan Aiki',
+    'All Resources': 'Duka Kayan Aiki',
     'Lecture Materials': 'Kayan Koyarwa',
     'Reading Materials': 'Kayan Karatu',
     'Practice Exercises': 'kayan Aikin Fractice',
@@ -2215,19 +2238,20 @@ const hausaTranslations = {
     'Resource Link': 'Hanyar Kayan Aiki',
     'External URL': 'Hanyar Waje',
     'Resource Content': 'Abun ciki na Kayan Aiki',
+    'All Types': 'Duka Nau\'in Kayan Aiki',
     'Files': 'Fayiloli',
     'Links': 'addreshi',
     'Text': 'Rubutu',
     'Back to Resources': 'Koma zuwa Kayyayakin Aiki Na',
-    'Sort By ': 'Tace ta',
-    'Recently Added': 'Sabon Shigowa',
+    'Recently Added': 'Sabbin shigowa',
+    'Added by': 'Daga',
     'Most Popular': 'Wanda Aka fi kalla',
     'Pinned': 'An Manna',
-    'Most Liked':' Wanda Aka fi So',
+    'Most Liked': ' Wanda Aka fi So',
     'Most Downloaded': 'Wanda Aka fi Downloadi',
     'Most Viewed': 'Wanda Aka fi Dubawa',
     'Title (A-Z)': 'Suna (A-Z)',
-    'Related Resources':'Kayan Aiki Masu Alaka',
+    'Related Resources': 'Kayan Aiki Masu Alaka',
     'Related resources will appear here automatically.': 'Kayan aiki masu alaka zasu bayyana anan kai tsaye.',
     'Download': 'Yi Downloadi',
     'No comments yet. Be the first to comment!': 'Babu ra\'ayi tukuna. Kasance na farko da ya yi bada ra\'ayi!',
@@ -2240,39 +2264,137 @@ const hausaTranslations = {
     'View Course': 'Duba Darasi',
     'Resource Details': 'Bayanin Kayan Aiki',
     'Download File': 'Yi Downlodin Fayil',
-    'Add your comment...': 'Saka ra\'ayinka anan...',
-    'Post Comment':'Tura Ra\'ayin',
+    'Add your comment...': 'Saka ra\'ayi anan...',
+    'Post Comment': 'Tura Ra\'ayi',
+    'Sort by': 'Tace ta',
+    'SORT BY': 'TACE TA',
+    'Updated': 'An Gyara',
+
+    //Date and time related
+    "second": "sacon",
+    "seconds": "sacon",
+    "minute": "minti",
+    "minutes": "mintuna",
+    "hour": "awa",
+    "hours": "awanni",
+    "day": "rana",
+    "days": "ranaku",
+    "week": "mako",
+    "weeks": "makonni",
+    "month": "wata",
+    "months": "watanni",
+    "year": "shekara",
+    "years": "shekaru",
+    "ago": "da suka wuce",
+    'AM': 'Na Safe',
+    'PM': 'Na Yamma',
+    // Months (full names)
+    "January": "Janairu",
+    "February": "Faburairu",
+    "March": "Maris",
+    "April": "Afrilu",
+    "May": "Mayu",
+    "June": "Yuni",
+    "July": "Yuli",
+    "August": "Agusta",
+    "September": "Satumba",
+    "October": "Oktoba",
+    "November": "Nuwamba",
+    "December": "Disamba",
+
+    //Abrreviated days
+    "Su": "Lah",
+    "Mo": "Lit",
+    "Tu": "Tal",
+    "We": "Lar",
+    "Th": "Alh",
+    "Fr": "Jum",
+    "Sa": "Asa",
+
+    // Abbreviated months
+    "Jan": "Janairu",
+    "Feb": "Fabarairu",
+    "Mar": "Maris",
+    "Apr": "Afrilu",
+    "May": "Mayu",
+    "Jun": "Yuni",
+    "Jul": "Yuli",
+    "Aug": "Agusta",
+    "Sep": "Satumba",
+    "Oct": "Oktoba",
+    "Nov": "Nuwamba",
+    "Dec": "Disamba",
+
+    // Special time words
+    "today": "yau",
+    "yesterday": "jiya",
+    "tomorrow": "gobe",
+    "now": "yanzu",
+    "soon": "nan gaba",
+    'Date Created': 'Ranar Kafa',
+    'Last Updated': 'An Sabunta Karshe',
+    'months ago': 'watanni dasuka wuce',
 
     // Assignment related
+    'Due':'Lokacin Tura Wa',
+    'Worth': 'Daraja',
     'Due Date': 'Kwanan Lokaci',
-    'Submission': 'Aiken',
+    'Submission': 'An Tura',
+    'Allow Late Submissions': 'Ana Iya Tura Wa Latti',
     'Grade': 'Maki',
-    'Points': 'Maki Na Ci',
-    'Late Submission': 'Aiken Makura',
-    'On Time': 'A Lokaci',
-    'Graded': 'An Kiyasta',
-    'Ungraded': 'Ba a Kiyasta ba',
+    'Points': 'Maki Ake Iya Ci',
+    'Submission Type': 'Nau\'in Tura Wa',
+    'late submissions Allowed': 'Ana Iya Tura Wa Latti',
+    'Manage Submissions': 'Duba da Ayyukan Da Aka Tura',
+    'Export Grades': 'Fitar da Makin Dalibai',
+    'Created': 'An Kafa',
+    'Submission Summary': 'Takaitaccen Bayanin Tura Aiki',
+    'Text and File Upload': 'Rubutu da Loda Fayil',
+    'Text Only': 'Rubutu Kawai',
+    'File Upload Only': 'Loda Fayil Kawai',
+    'Late Submission': 'An Tura Latti',
+    'Grading': 'Maki',
+    'Score (out of 100)': 'Maki (bisa 100)',
+    'Feedback': 'Ra\'ayyoyi',
+    'Edit Grade': 'Gyara Maki',
+    'All submissions': 'Duk Ayyukan Da Aka Tura',
+    'On Time': 'Akan Lokaci',
+    'Graded': 'Anyi Maki',
+    'Ungraded': 'Ba Ayi Maki ba',
     'Active Assignments': 'Sabbin Ayyuka',
     'No upcoming assignments. Enjoy your free time!': 'Babu Ayyuka A Yanzu. A Huta Lafiya!',
     'Past Due Assignments': 'Ayyuka Dasuka Wuce',
     'Assignment': 'Aiki',
-    'Submissions': 'AyyukaN Da Aka Tura',
-    'Actions':'Abun Yi',
+
+    'Submissions': 'Ayyukan Da Aka Tura',
+    'Actions': 'Abun Yi',
+    'Upcoming': 'Sabbin Ayyuka',
+    'Submitted': 'An Tura',
+    'Not Submitted': 'Ba a Tura ba',
+    'Missed': 'Lokaci Ya Wuce',
+    'Graded': 'Anyi Maki',
+    'days overdue': 'ranaku dasuka wuce',
+    'No submitted assignments awaiting grades': 'Babu Ayyuka da aka tura a yanzu',
+    'Missed Assignments': 'Ayyuka Na Da Lokaci Ya Wuce',
+    'Submitted Assignments': 'Ayyuka Da Aka Tura',
+    'Assignment Details': 'Cikakken Bayanin Aiki',
+
     // Discussion related
     'Post': 'Rubutu',
     'Reply': 'Amsa',
     'Comments': 'Ra\'ayoyi',
     'Announcements': 'Sanarwa',
-    'Popular Discussions':' Sannanun Tattaunawa',
+    'Popular Discussions': ' Sannanun Tattaunawa',
     'No popular discussions yet.': 'Babu Sannanun Tattaunawa a yanzu.',
-    'All':'Duka',
-    'Unread':'Wainda Ba\'a Karanta ba',
+    'Unread': 'Wainda Ba\'a Karanta ba',
     'My Posts': 'Tattaunawa Na',
-    
+    'Total Replies': 'Duka Amsoshi',
+
     // Profile and Settings
-    'Account': 'Asusun',
+    'Account': 'Asusu',
     'Password': 'Kalmar Sirri',
     'Email': 'Imel',
+    'E-Mail': 'Imel',
     'Name': 'Suna',
     'First Name': 'Sunan Farko',
     'Last Name': 'Sunan Karshe',
@@ -2288,14 +2410,14 @@ const hausaTranslations = {
     'Privacy': 'Sirri',
     'Select your preferred language for the interface.': 'Zaɓi yaren da kake so a wannan shafin.',
     'Select your preferred theme': 'Zaɓi jigon da kake so',
-    'Customize your experience':'Gyara saituttukan Ka',
-    'Manage your account settings':'Gudanar da saitunan asusunka',
-    'Manage your privacy settings':'Gudanar da saitunan sirrinka',
+    'Customize your experience': 'Gyara saituttukan Ka',
+    'Manage your account settings': 'Gudanar da saitunan asusunka',
+    'Manage your privacy settings': 'Gudanar da saitunan sirrinka',
     'General': 'Komai da Komai',
     'Appearance': 'Kama',
     'Security': 'Tsaro',
     'Accessibility': 'Kananan Gyara-Gyare',
-    
+
     // Messages
     'Successfully saved': 'An yi nasarar ajiye',
     'Changes applied': 'An yi canji',
@@ -2304,7 +2426,7 @@ const hausaTranslations = {
     'Please try again': 'Da fatan a sake gwadawa',
     'Are you sure?': 'Kana tabbata?',
     'This action cannot be undone': 'Ba za\'a iya janye wannan aiki ba',
-    
+
     // Settings sections
     'General Settings': 'Saitunan Gaba Ɗaya',
     'Account Settings': 'Saitunan Acount',
@@ -2313,21 +2435,25 @@ const hausaTranslations = {
     'Email Address': 'Adireshin Imel',
     'Change Email': 'Canza Imel',
     'Bio': 'Takaittacen Bayani',
-    'Choose how dates and times are displayed.':'Nuna Yanda Lokuta da Kwanan Wata Zasu bayyana.',
+    'Choose how dates and times are displayed.': 'Nuna Yanda Lokuta da Kwanan Wata Zasu bayyana.',
     'Brief description about yourself that will be visible on your profile.': 'Takaitaccen bayani akan mutum wanda zai bayyana profile.',
     'Profile Visibility': 'Bayyanar Profile',
     'Who can see your profile?': 'Wa zai iya ganin profile din mutum?',
     'Upload a profile picture to personalize your account.': 'Loda hoto don bambanta acount.',
-    'Change Picture':'Chanza Hoto',
+    'Change Picture': 'Chanza Hoto',
     'Save Changes': 'Ajiye Canje-canje',
     'Appearance Settings': 'Saitunan Kama',
     'Language Settings': 'Saitin Yare',
     'Notification Settings': 'Saitunan Sanerwa',
     'Security Settings': 'Saitunan Tsaro',
     'Accessibility Settings': 'Saitunan Samuwa',
-    
+
     // Specific to language settings
     'Display Language': 'Nuna Yare',
+    'Log In': 'Shiga',
+    'Sign Up': 'Yi Rajista',
+    'Log In to Virtual Campus': 'Shiga Virtual Campus',
+    'Don\'t have an Account?': 'Ba A Da accoun?',
     'Date & Time Format': 'Tsarin Kwanan Wata & Lokaci',
     'Date Format': 'Tsarin Kwanan Wata',
     'Time Format': 'Tsarin Lokaci',
@@ -2343,62 +2469,782 @@ const hausaTranslations = {
 function applyEnglishTranslations() {
     // Store the fact that English is the active language
     localStorage.setItem('language', 'en');
-    
+
     // Reload the page to reset all translations
     window.location.reload();
 }
-function applyHausaTranslations() {
+
+function applyHausaTranslations(targetElement = null, visitedElements = new Set()) {
     // Store the fact that Hausa is the active language
     localStorage.setItem('language', 'ha');
     localStorage.setItem('languageChange', 'true');
-    // Walk through text nodes and translate them
+
+    // If no target specified, translate the whole document including modals
+    const rootElement = targetElement || document.documentElement;
+
+    // Prevent infinite recursion
+    if (visitedElements.has(rootElement)) return;
+    visitedElements.add(rootElement);
+
+    // Enhanced translation function that handles patterns and placeholders
+    function translateText(text, isAttribute = false) {
+        if (!text || typeof text !== 'string') return text;
+
+        const trimmedText = text.trim();
+        if (!trimmedText) return text;
+
+        // Normalize the text for lookup (handle case and extra whitespace)
+        const normalizedText = trimmedText.replace(/\s+/g, ' '); // Replace multiple spaces with single space
+        const lowerText = normalizedText.toLowerCase();
+
+        // Direct translation lookup (try original, normalized, and lowercase versions)
+        const directLookups = [trimmedText, normalizedText, lowerText];
+        for (let lookup of directLookups) {
+            if (hausaTranslations[lookup]) {
+                return hausaTranslations[lookup];
+            }
+        }
+
+        // Also try case-insensitive lookup by checking all translation keys
+        for (let key in hausaTranslations) {
+            if (key.toLowerCase() === lowerText) {
+                return hausaTranslations[key];
+            }
+        }
+
+        // Handle dynamic patterns with numbers in parentheses like "My Courses(4)"
+        const numberPattern = /^(.+?)\s*\((\d+)\)$/;
+        const numberMatch = trimmedText.match(numberPattern);
+        if (numberMatch) {
+            const baseText = numberMatch[1].trim();
+            const number = numberMatch[2];
+            if (hausaTranslations[baseText]) {
+                return `${hausaTranslations[baseText]}(${number})`;
+            }
+        }
+
+        // Handle patterns with variables like "Welcome, {username}!"
+        const variablePattern = /\{[^}]+\}/g;
+        if (variablePattern.test(trimmedText)) {
+            let translatedText = trimmedText;
+            // Extract the base text without variables
+            const baseText = trimmedText.replace(variablePattern, '').trim();
+            // Remove extra spaces and punctuation for lookup
+            const cleanBaseText = baseText.replace(/[,!.?]+\s*$/, '').trim();
+
+            if (hausaTranslations[cleanBaseText]) {
+                // Replace the base text while preserving variables
+                translatedText = trimmedText.replace(cleanBaseText, hausaTranslations[cleanBaseText]);
+            }
+            return translatedText;
+        }
+
+        // Handle greeting patterns like "Welcome back, Aliyu!" or "Hello, John!"
+        const greetingPatterns = [
+            /^(Welcome back),\s*([^,!.?]+)([!.?]*)$/i,
+            /^(Welcome),\s*([^,!.?]+)([!.?]*)$/i,
+            /^(Hello),\s*([^,!.?]+)([!.?]*)$/i,
+            /^(Hi),\s*([^,!.?]+)([!.?]*)$/i,
+            /^(Good morning),\s*([^,!.?]+)([!.?]*)$/i,
+            /^(Good afternoon),\s*([^,!.?]+)([!.?]*)$/i,
+            /^(Good evening),\s*([^,!.?]+)([!.?]*)$/i
+        ];
+
+        for (let pattern of greetingPatterns) {
+            const greetingMatch = trimmedText.match(pattern);
+            if (greetingMatch) {
+                const greeting = greetingMatch[1];
+                const name = greetingMatch[2];
+                const punctuation = greetingMatch[3] || '';
+
+                if (hausaTranslations[greeting]) {
+                    return `${hausaTranslations[greeting]}, ${name}${punctuation}`;
+                }
+            }
+        }
+
+        // Handle patterns with names and punctuation like "Welcome back, Name!" without exact match
+        const namePattern = /^(.+?),\s*([A-Z][a-zA-Z\s]*?)([!.?]*)$/;
+        const nameMatch = trimmedText.match(namePattern);
+        if (nameMatch) {
+            const basePhrase = nameMatch[1].trim();
+            const name = nameMatch[2].trim();
+            const punctuation = nameMatch[3] || '';
+
+            if (hausaTranslations[basePhrase]) {
+                return `${hausaTranslations[basePhrase]}, ${name}${punctuation}`;
+            }
+        }
+
+        // Handle patterns with percentage or other dynamic values like "Progress: 75%"
+        const percentPattern = /^(.+?):\s*(\d+%?)$/;
+        const percentMatch = trimmedText.match(percentPattern);
+        if (percentMatch) {
+            const baseText = percentMatch[1].trim();
+            const value = percentMatch[2];
+            if (hausaTranslations[baseText]) {
+                return `${hausaTranslations[baseText]}: ${value}`;
+            }
+        }
+
+        // Handle relative time patterns like "2 months ago", "26 days ago", "1 year ago"
+        const relativeTimePatterns = [
+            /^(\d+)\s+(second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\s+(ago)$/i,
+            /^(\d+)\s+(sec|min|hr|hrs|wk|wks|mo|mos|yr|yrs)\s+(ago)$/i,
+            /^(a|an)\s+(second|minute|hour|day|week|month|year)\s+(ago)$/i
+        ];
+
+        for (let pattern of relativeTimePatterns) {
+            const timeMatch = trimmedText.match(pattern);
+            if (timeMatch) {
+                const number = timeMatch[1];
+                const timeUnit = timeMatch[2].toLowerCase();
+                const agoWord = timeMatch[3];
+
+                // Handle "a" or "an" cases
+                if (number === 'a' || number === 'an') {
+                    const translatedUnit = hausaTranslations[timeUnit] || hausaTranslations[timeUnit + 's'];
+                    const translatedAgo = hausaTranslations[agoWord];
+                    if (translatedUnit && translatedAgo) {
+                        return `${translatedUnit} 1 ${translatedAgo}`;
+                    }
+                } else {
+                    // Handle plural/singular forms
+                    let unitKey = timeUnit;
+                    const num = parseInt(number);
+
+                    // Map common abbreviations
+                    const unitMap = {
+                        'sec': 'second', 'min': 'minute', 'hr': 'hour', 'hrs': 'hours',
+                        'wk': 'week', 'wks': 'weeks', 'mo': 'month', 'mos': 'months',
+                        'yr': 'year', 'yrs': 'years'
+                    };
+
+                    if (unitMap[unitKey]) {
+                        unitKey = unitMap[unitKey];
+                    }
+
+                    // Try both singular and plural forms
+                    const translatedUnit = hausaTranslations[unitKey] ||
+                        hausaTranslations[unitKey + 's'] ||
+                        hausaTranslations[unitKey.replace(/s$/, '')];
+                    const translatedAgo = hausaTranslations[agoWord];
+
+                    if (translatedUnit && translatedAgo) {
+                        return `${translatedUnit} ${number} ${translatedAgo}`;
+                    }
+                }
+            }
+        }
+
+        // Handle month-year patterns like "June 2025", "December 2024"
+        const monthYearPattern = /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$/i;
+        const monthYearMatch = trimmedText.match(monthYearPattern);
+        if (monthYearMatch) {
+            const month = monthYearMatch[1];
+            const year = monthYearMatch[2];
+
+            if (hausaTranslations[month]) {
+                return `${hausaTranslations[month]} ${year}`;
+            }
+        }
+
+        // Handle abbreviated month patterns like "Jan 2025", "Feb 2024"
+        const shortMonthYearPattern = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})$/i;
+        const shortMonthYearMatch = trimmedText.match(shortMonthYearPattern);
+        if (shortMonthYearMatch) {
+            const shortMonth = shortMonthYearMatch[1];
+            const year = shortMonthYearMatch[2];
+
+            if (hausaTranslations[shortMonth]) {
+                return `${hausaTranslations[shortMonth]} ${year}`;
+            }
+        }
+
+        // Handle date patterns like "June 15, 2025" or "15 June 2025"
+        const fullDatePatterns = [
+            /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})$/i,
+            /^(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$/i
+        ];
+
+        for (let pattern of fullDatePatterns) {
+            const dateMatch = trimmedText.match(pattern);
+            if (dateMatch) {
+                if (pattern.source.startsWith('^(January')) {
+                    // Month Day, Year format
+                    const month = dateMatch[1];
+                    const day = dateMatch[2];
+                    const year = dateMatch[3];
+
+                    if (hausaTranslations[month]) {
+                        return `${day} ${hausaTranslations[month]} ${year}`;
+                    }
+                } else {
+                    // Day Month Year format
+                    const day = dateMatch[1];
+                    const month = dateMatch[2];
+                    const year = dateMatch[3];
+
+                    if (hausaTranslations[month]) {
+                        return `${day} ${hausaTranslations[month]} ${year}`;
+                    }
+                }
+            }
+        }
+
+        // Handle "today", "yesterday", "tomorrow" patterns
+        const specialTimeWords = ['today', 'yesterday', 'tomorrow', 'now', 'recently', 'soon'];
+        if (specialTimeWords.includes(trimmedText.toLowerCase())) {
+            const translation = hausaTranslations[trimmedText.toLowerCase()];
+            if (translation) {
+                return translation;
+            }
+        }
+
+        // Handle patterns like "Page 1 of 5"
+        const pagePattern = /^(.+?)\s+(\d+)\s+(.+?)\s+(\d+)$/;
+        const pageMatch = trimmedText.match(pagePattern);
+        if (pageMatch) {
+            const part1 = pageMatch[1];
+            const num1 = pageMatch[2];
+            const part2 = pageMatch[3];
+            const num2 = pageMatch[4];
+
+            if (hausaTranslations[part1] && hausaTranslations[part2]) {
+                return `${hausaTranslations[part1]} ${num1} ${hausaTranslations[part2]} ${num2}`;
+            }
+        }
+
+        // Handle compound phrases - check for complete phrases first, then fall back to individual words
+        const words = normalizedText.split(/\s+/);
+        if (words.length > 1) {
+            // First, try to find longer phrase combinations (case-insensitive)
+            for (let length = words.length; length >= 2; length--) {
+                for (let start = 0; start <= words.length - length; start++) {
+                    const phrase = words.slice(start, start + length).join(' ');
+                    const cleanPhrase = phrase.replace(/[^\w\s]/g, '').trim();
+
+                    // Try exact match, clean match, and case-insensitive matches
+                    const phraseLookups = [phrase, cleanPhrase, phrase.toLowerCase(), cleanPhrase.toLowerCase()];
+                    let translation = null;
+
+                    for (let lookup of phraseLookups) {
+                        if (hausaTranslations[lookup]) {
+                            translation = hausaTranslations[lookup];
+                            break;
+                        }
+                    }
+
+                    // Also try case-insensitive key matching
+                    if (!translation) {
+                        for (let key in hausaTranslations) {
+                            if (key.toLowerCase() === phrase.toLowerCase() || key.toLowerCase() === cleanPhrase.toLowerCase()) {
+                                translation = hausaTranslations[key];
+                                break;
+                            }
+                        }
+                    }
+
+                    if (translation) {
+                        const before = words.slice(0, start);
+                        const after = words.slice(start + length);
+
+                        // Preserve punctuation from original phrase
+                        const punctuation = phrase.match(/[^\w\s]+$/);
+                        const translatedPhrase = punctuation ? translation + punctuation[0] : translation;
+
+                        return [...before, translatedPhrase, ...after].join(' ');
+                    }
+                }
+            }
+
+            // Fall back to individual word translation only if no phrase matches found
+            let hasTranslation = false;
+            let translatedWords = words.map(word => {
+                const cleanWord = word.replace(/[^\w\s]/g, ''); // Remove punctuation
+
+                // Try multiple lookup variations for each word
+                const wordLookups = [word, cleanWord, word.toLowerCase(), cleanWord.toLowerCase()];
+                let wordTranslation = null;
+
+                for (let lookup of wordLookups) {
+                    if (hausaTranslations[lookup]) {
+                        wordTranslation = hausaTranslations[lookup];
+                        break;
+                    }
+                }
+
+                // Also try case-insensitive key matching for individual words
+                if (!wordTranslation) {
+                    for (let key in hausaTranslations) {
+                        if (key.toLowerCase() === cleanWord.toLowerCase()) {
+                            wordTranslation = hausaTranslations[key];
+                            break;
+                        }
+                    }
+                }
+
+                if (wordTranslation) {
+                    hasTranslation = true;
+                    return word.replace(cleanWord, wordTranslation);
+                }
+                return word;
+            });
+
+            if (hasTranslation) {
+                return translatedWords.join(' ');
+            }
+        }
+
+        return text; // Return original if no translation found
+    }
+
+    // Walk through text nodes and translate them - use rootElement instead of document.body
     const textNodes = document.createTreeWalker(
-        document.body,
+        rootElement,
         NodeFilter.SHOW_TEXT,
-        null,
+        {
+            acceptNode: function (node) {
+                // Skip script and style elements
+                const parent = node.parentElement;
+                if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' ||
+                    parent.closest('[data-user-content="true"], .user-content')
+                )) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                // Only process nodes with meaningful text
+                return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+        },
         false
     );
-    
+
     let node;
+    const processedNodes = new Set();
+
     while (node = textNodes.nextNode()) {
-        const text = node.nodeValue.trim();
-        if (text && hausaTranslations[text]) {
-            node.nodeValue = node.nodeValue.replace(text, hausaTranslations[text]);
+        // Avoid processing the same node multiple times
+        if (processedNodes.has(node)) continue;
+        processedNodes.add(node);
+
+        const originalText = node.nodeValue;
+        const translatedText = translateText(originalText);
+
+        if (translatedText !== originalText) {
+            node.nodeValue = translatedText;
         }
     }
-    
-    // Translate attributes like placeholders and titles
-    const elements = document.querySelectorAll('[placeholder], [title], [aria-label]');
+
+    // Translate attributes like placeholders, titles, and aria-labels - use rootElement
+    const attributesToTranslate = ['placeholder', 'title', 'aria-label', 'alt', 'data-tooltip'];
+    const elements = rootElement.querySelectorAll(
+        attributesToTranslate.map(attr => `[${attr}]`).join(', ')
+    );
+
     elements.forEach(el => {
-        if (el.hasAttribute('placeholder')) {
-            const text = el.getAttribute('placeholder');
-            if (hausaTranslations[text]) {
-                el.setAttribute('placeholder', hausaTranslations[text]);
+        attributesToTranslate.forEach(attr => {
+            if (el.hasAttribute(attr)) {
+                const originalText = el.getAttribute(attr);
+                const translatedText = translateText(originalText, true);
+
+                if (translatedText !== originalText) {
+                    el.setAttribute(attr, translatedText);
+                }
+            }
+        });
+    });
+
+    // Handle select dropdowns and their options - use rootElement
+    const selectElements = rootElement.querySelectorAll('select');
+    selectElements.forEach(selectEl => {
+        selectEl.querySelectorAll('option').forEach(optionEl => {
+            const originalText = optionEl.textContent;
+            const translatedText = translateText(originalText);
+
+            if (translatedText !== originalText) {
+                optionEl.textContent = translatedText;
+            }
+
+            // Also translate the value attribute if it contains text
+            const value = optionEl.getAttribute('value');
+            if (value && isNaN(value) && value !== originalText.trim()) {
+                const translatedValue = translateText(value, true);
+                if (translatedValue !== value) {
+                    optionEl.setAttribute('value', translatedValue);
+                }
+            }
+        });
+    });
+
+    // Handle buttons and interactive elements - use rootElement
+    const interactiveElements = rootElement.querySelectorAll('button, input[type="submit"], input[type="button"], a');
+    interactiveElements.forEach(el => {
+        // Translate button text content
+        if (el.textContent && el.textContent.trim()) {
+            const originalText = el.textContent;
+            const translatedText = translateText(originalText);
+
+            if (translatedText !== originalText) {
+                el.textContent = translatedText;
             }
         }
-        
-        if (el.hasAttribute('title')) {
-            const text = el.getAttribute('title');
-            if (hausaTranslations[text]) {
-                el.setAttribute('title', hausaTranslations[text]);
-            }
-        }
-        
-        if (el.hasAttribute('aria-label')) {
-            const text = el.getAttribute('aria-label');
-            if (hausaTranslations[text]) {
-                el.setAttribute('aria-label', hausaTranslations[text]);
+
+        // Translate input values for buttons
+        if (el.tagName === 'INPUT' && el.hasAttribute('value')) {
+            const originalValue = el.getAttribute('value');
+            const translatedValue = translateText(originalValue, true);
+
+            if (translatedValue !== originalValue) {
+                el.setAttribute('value', translatedValue);
             }
         }
     });
-    
-    // Update document direction for RTL languages if needed (Hausa is LTR so we don't change it)
+
+    // Handle data attributes that might contain user-facing text - use rootElement
+    const elementsWithDataText = rootElement.querySelectorAll('[data-text], [data-label], [data-message]');
+    elementsWithDataText.forEach(el => {
+        ['data-text', 'data-label', 'data-message'].forEach(attr => {
+            if (el.hasAttribute(attr)) {
+                const originalText = el.getAttribute(attr);
+                const translatedText = translateText(originalText, true);
+
+                if (translatedText !== originalText) {
+                    el.setAttribute(attr, translatedText);
+                }
+            }
+        });
+    });
+
+    // Set document language
     document.documentElement.setAttribute('lang', 'ha');
+
+    // Translate any existing modals and portals
+    translateModalsAndPortals();
+
+    // Optional: Dispatch custom event to notify other parts of the application
+    const translationEvent = new CustomEvent('translationApplied', {
+        detail: { language: 'ha', timestamp: Date.now(), target: targetElement || 'document' }
+    });
+    document.dispatchEvent(translationEvent);
 }
 
+// Function to specifically target modals and portal elements
+function translateModalsAndPortals(visitedElements = new Set()) {
+    if (localStorage.getItem('language') !== 'ha') return;
+
+    // Common modal selectors
+    const modalSelectors = [
+        '[role="dialog"]',
+        '[aria-modal="true"]',
+        '.modal',
+        '.dialog',
+        '.popup',
+        '.overlay',
+        '.modal-content',
+        '.modal-body',
+        '.modal-header',
+        '.modal-footer',
+        '[data-modal]',
+        '[data-dialog]',
+        '.fixed.inset-0', // Common Tailwind modal pattern
+        '.z-50', // High z-index elements (often modals)
+        '#modal',
+        '#dialog',
+        '.ReactModal__Content', // React Modal
+        '.MuiDialog-root', // Material-UI
+        '.ant-modal', // Ant Design
+        '.el-dialog', // Element UI
+        '.v-dialog' // Vuetify
+    ];
+
+    const foundModals = document.querySelectorAll(modalSelectors.join(', '));
+
+    foundModals.forEach(modal => {
+        // Prevent infinite recursion: if we've already processed this element, skip
+        if (visitedElements.has(modal)) return;
+        visitedElements.add(modal);
+
+        // Check if modal is visible or has content
+        const isVisible = modal.oiffsetParent !== null ||
+            getComputedStyle(modal).display !== 'none' ||
+            modal.getAttribute('aria-hidden') !== 'true';
+
+        // Translate both visible and hidden modals (they might become visible later)
+        applyHausaTranslations(modal, visitedElements);
+    });
+
+    // Also check for elements appended to body that might be portals
+    const bodyChildren = Array.from(document.body.children);
+    bodyChildren.forEach(child => {
+        // Prevent infinite recursion: if we've already processed this element, skip
+        if (visitedElements.has(child)) return;
+        // Look for elements with high z-index or common portal characteristics
+        const style = getComputedStyle(child);
+        const zIndex = parseInt(style.zIndex);
+
+        if (zIndex > 1000 ||
+            style.position === 'fixed' ||
+            child.classList.contains('portal') ||
+            child.id.includes('portal') ||
+            child.id.includes('modal') ||
+            child.id.includes('dialog')) {
+            applyHausaTranslations(child, visitedElements);
+        }
+    });
+
+    // Check React portals and other common portal containers
+    const portalContainers = document.querySelectorAll(
+        '#root-portal, #modal-root, #dialog-root, #portal-root, .portal-container'
+    );
+
+    portalContainers.forEach(container => {
+        if (visitedElements.has(container)) return;
+        applyHausaTranslations(container, visitedElements);
+    });
+}
+
+
+// Helper function to observe and translate dynamically added content
+function observeDynamicContent() {
+    const observer = new MutationObserver(function (mutations) {
+        // Check if Hausa is still the active language
+        if (localStorage.getItem('language') !== 'ha') return;
+
+        mutations.forEach(function (mutation) {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        // Check if this is a modal or portal element
+                        const isModal = node.matches && (
+                            node.matches('[role="dialog"]') ||
+                            node.matches('[aria-modal="true"]') ||
+                            node.matches('.modal, .dialog, .popup, .overlay') ||
+                            node.classList.contains('modal') ||
+                            node.id.includes('modal') ||
+                            node.id.includes('dialog')
+                        );
+
+                        // Translate the new element and its children
+                        translateElement(node);
+
+                        // If it's a modal, also run the comprehensive translation
+                        if (isModal) {
+                            // Wait a bit for the modal to fully render
+                            setTimeout(() => {
+                                applyHausaTranslations(node);
+                            }, 100);
+                        }
+                    } else if (node.nodeType === Node.TEXT_NODE) {
+                        // Translate the text node
+                        const originalText = node.nodeValue;
+                        const translatedText = translateText(originalText);
+                        if (translatedText !== originalText) {
+                            node.nodeValue = translatedText;
+                        }
+                    }
+                });
+            } else if (mutation.type === 'attributes') {
+                // Handle attribute changes
+                const target = mutation.target;
+                const attributeName = mutation.attributeName;
+
+                if (['placeholder', 'title', 'aria-label', 'alt'].includes(attributeName)) {
+                    const originalText = target.getAttribute(attributeName);
+                    const translatedText = translateText(originalText, true);
+
+                    if (translatedText !== originalText) {
+                        target.setAttribute(attributeName, translatedText);
+                    }
+                }
+
+                // Check for visibility changes that might indicate a modal appearing
+                if (attributeName === 'style' || attributeName === 'class' || attributeName === 'aria-hidden') {
+                    const isModalElement = target.matches && (
+                        target.matches('[role="dialog"]') ||
+                        target.matches('.modal, .dialog, .popup')
+                    );
+
+                    if (isModalElement) {
+                        setTimeout(() => {
+                            applyHausaTranslations(target);
+                        }, 50);
+                    }
+                }
+            }
+        });
+    });
+
+    // Observe the entire document, including head for dynamically added content
+    observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['placeholder', 'title', 'aria-label', 'alt', 'data-text', 'data-label', 'style', 'class', 'aria-hidden']
+    });
+
+    return observer;
+}
+
+// Helper function to translate a specific element and its children
+function translateElement(element) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
+
+    // Skip script and style elements
+    if (element.tagName === 'SCRIPT' || element.tagName === 'STYLE') return;
+
+    // Translate text content
+    const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function (node) {
+                const parent = node.parentElement;
+                if (parent && (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+            }
+        },
+        false
+    );
+
+    let node;
+    while (node = walker.nextNode()) {
+        const originalText = node.nodeValue;
+        const translatedText = translateText(originalText);
+
+        if (translatedText !== originalText) {
+            node.nodeValue = translatedText;
+        }
+    }
+
+    // Translate attributes
+    const attributesToTranslate = ['placeholder', 'title', 'aria-label', 'alt', 'data-tooltip'];
+    if (element.hasAttributes()) {
+        attributesToTranslate.forEach(attr => {
+            if (element.hasAttribute(attr)) {
+                const originalText = element.getAttribute(attr);
+                const translatedText = translateText(originalText, true);
+
+                if (translatedText !== originalText) {
+                    element.setAttribute(attr, translatedText);
+                }
+            }
+        });
+    }
+
+    // Handle select options
+    if (element.tagName === 'SELECT') {
+        element.querySelectorAll('option').forEach(optionEl => {
+            const originalText = optionEl.textContent;
+            const translatedText = translateText(originalText);
+
+            if (translatedText !== originalText) {
+                optionEl.textContent = translatedText;
+            }
+        });
+    }
+}
+
+// Usage example:
+// applyHausaTranslations();
+// const observer = observeDynamicContent(); // To handle dynamic content
+// observer.disconnect(); // To stop observing when needed
+
+// Additional helper functions for modal-specific scenarios
+
+// Function to translate modals when they become visible
+function translateOnModalOpen() {
+    // Listen for common modal events
+    document.addEventListener('click', function (e) {
+        if (localStorage.getItem('language') !== 'ha') return;
+
+        // Check if clicked element might open a modal
+        const modalTriggers = e.target.closest('[data-modal], [data-toggle="modal"], .modal-trigger, [aria-haspopup="dialog"]');
+
+        if (modalTriggers) {
+            setTimeout(() => {
+                translateModalsAndPortals();
+            }, 200); // Wait for modal to appear
+        }
+    });
+
+    // Listen for focus events (modals often focus on first element)
+    document.addEventListener('focusin', function (e) {
+        if (localStorage.getItem('language') !== 'ha') return;
+
+        const modalElement = e.target.closest('[role="dialog"], .modal, [aria-modal="true"]');
+        if (modalElement) {
+            applyHausaTranslations(modalElement);
+        }
+    });
+}
+
+// Function to manually trigger translation of all visible modals
+function translateVisibleModals() {
+    if (localStorage.getItem('language') !== 'ha') return;
+
+    const modalSelectors = [
+        '[role="dialog"]:not([aria-hidden="true"])',
+        '[aria-modal="true"]',
+        '.modal:not(.hidden)',
+        '.dialog:not(.hidden)',
+        '.popup:not(.hidden)'
+    ];
+
+    const visibleModals = document.querySelectorAll(modalSelectors.join(', '));
+    visibleModals.forEach(modal => {
+        applyHausaTranslations(modal);
+    });
+}
+
+// Function to force translation of specific modal by ID or selector
+function translateModal(selector) {
+    if (localStorage.getItem('language') !== 'ha') return;
+
+    const modal = document.querySelector(selector);
+    if (modal) {
+        applyHausaTranslations(modal);
+        return true;
+    }
+    return false;
+}
+
+// Comprehensive initialization function
+function initHausaTranslation() {
+    // Apply initial translations
+    applyHausaTranslations();
+
+    // Set up dynamic content observer
+    const observer = observeDynamicContent();
+
+    // Set up modal-specific listeners
+    translateOnModalOpen();
+
+    // Periodic check for missed modals (fallback)
+    const modalCheckInterval = setInterval(() => {
+        if (localStorage.getItem('language') !== 'ha') {
+            clearInterval(modalCheckInterval);
+            return;
+        }
+        translateModalsAndPortals();
+    }, 2000);
+
+    // Return cleanup function
+    return function cleanup() {
+        observer.disconnect();
+        clearInterval(modalCheckInterval);
+    };
+}
+// Usage example:
+// applyHausaTranslations();
+// const observer = observeDynamicContent(); // To handle dynamic content
+// observer.disconnect(); // To stop observing when needed
+// Usage example:
+// applyHausaTranslations();
 /**
- * Reset interface language to default (English)
- */
+  Reset interface language to default (English)
+ **/
 function resetToDefaultLanguage() {
     localStorage.removeItem('language');
     //location.reload(); // Reload the page to reset translations
@@ -2428,17 +3274,17 @@ function initializeLanguage() {
             subtree: true
         });
     }
-    else  {
+    else {
         // Default to English if no preference is set
         resetToDefaultLanguage();
         localStorage.setItem('languageChange', 'true');
     }
- // Reload the page to apply translations
+    // Reload the page to apply translations
 }
 function reloadPage() {
     location.reload(); // Reload the page to apply translations
 }
-    
+
 /**
  * Show modal with active user sessions
  */
@@ -2446,29 +3292,29 @@ function showSessionsModal() {
     // In a real app, you would fetch active sessions from the server
     // For demonstration, we'll use mock data
     const mockSessions = [
-        { 
-            id: '1', 
-            device: 'Chrome on Windows', 
-            location: 'Lagos, Nigeria', 
+        {
+            id: '1',
+            device: 'Chrome on Windows',
+            location: 'Lagos, Nigeria',
             lastActive: new Date(Date.now() - 1000 * 60), // 1 minute ago
-            isCurrent: true 
+            isCurrent: true
         },
-        { 
-            id: '2', 
-            device: 'Safari on iPhone', 
-            location: 'Abuja, Nigeria', 
+        {
+            id: '2',
+            device: 'Safari on iPhone',
+            location: 'Abuja, Nigeria',
             lastActive: new Date(Date.now() - 1000 * 60 * 60 * 3), // 3 hours ago
-            isCurrent: false 
+            isCurrent: false
         },
-        { 
-            id: '3', 
-            device: 'Firefox on Mac', 
-            location: 'Kano, Nigeria', 
+        {
+            id: '3',
+            device: 'Firefox on Mac',
+            location: 'Kano, Nigeria',
             lastActive: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2), // 2 days ago
-            isCurrent: false 
+            isCurrent: false
         }
     ];
-    
+
     const modalHtml = `
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl p-6">
@@ -2489,10 +3335,10 @@ function showSessionsModal() {
                             <div class="flex justify-between items-start">
                                 <div>
                                     <div class="flex items-center">
-                                        <i class="fas ${session.device.includes('Chrome') ? 'fa-chrome' : 
-                                                      session.device.includes('Safari') ? 'fa-safari' : 
-                                                      session.device.includes('Firefox') ? 'fa-firefox' : 
-                                                      'fa-globe'} mr-2 text-gray-500"></i>
+                                        <i class="fas ${session.device.includes('Chrome') ? 'fa-chrome' :
+            session.device.includes('Safari') ? 'fa-safari' :
+                session.device.includes('Firefox') ? 'fa-firefox' :
+                    'fa-globe'} mr-2 text-gray-500"></i>
                                         <span class="font-medium">${session.device}</span>
                                         ${session.isCurrent ? '<span class="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full">Current</span>' : ''}
                                     </div>
@@ -2524,35 +3370,37 @@ function showSessionsModal() {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeSessionsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('closeSessionsBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Individual session revocation
     const revokeButtons = document.querySelectorAll('.revoke-session-btn');
     revokeButtons.forEach(btn => {
         btn.addEventListener('click', async () => {
             const sessionId = btn.dataset.id;
-            
+
             // In a real app, this would call an API endpoint
             try {
                 // Mock API call
                 // await userService.revokeSession(sessionId);
-                
+
                 // Show success toast
                 showToast('Session revoked successfully');
-                
+
                 // Remove the session from the DOM
                 btn.closest('.p-4').remove();
             } catch (error) {
@@ -2561,17 +3409,17 @@ function showSessionsModal() {
             }
         });
     });
-    
+
     // Revoke all other sessions
     document.getElementById('revokeAllBtn').addEventListener('click', async () => {
         // In a real app, this would call an API endpoint
         try {
             // Mock API call
             // await userService.revokeAllOtherSessions();
-            
+
             // Show success toast
             showToast('All other sessions revoked successfully');
-            
+
             // Remove all non-current sessions from the DOM
             document.querySelectorAll('.revoke-session-btn').forEach(btn => {
                 btn.closest('.p-4').remove();
@@ -2582,7 +3430,7 @@ function showSessionsModal() {
         }
     });
 }
-  
+
 /**
  * Show delete account confirmation modal
  */
@@ -2644,50 +3492,52 @@ function showDeleteAccountModal() {
             </div>
         </div>
     `;
-    
+
     // Add modal to DOM
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-    
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeDeleteAccountModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
     });
-    
+
     // Form submission
     document.getElementById('deleteAccountForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const password = document.getElementById('confirmDeletePassword').value;
         const confirmed = document.getElementById('confirmDeleteCheckbox').checked;
         const errorDiv = document.getElementById('deleteAccountError');
-        
+
         errorDiv.classList.add('hidden');
-        
+
         if (!password) {
             errorDiv.textContent = 'Please enter your password';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         if (!confirmed) {
             errorDiv.textContent = 'Please confirm that you understand this action cannot be undone';
             errorDiv.classList.remove('hidden');
             return;
         }
-        
+
         try {
             // In a real app, this would call the API to delete the account
             await userService.deleteAccount({ password });
-            
+
             // Show success message
             showToast('Your account has been deleted');
-            
+
             // Redirect to logout
             setTimeout(() => {
                 window.location.href = '/logout';
@@ -2699,27 +3549,27 @@ function showDeleteAccountModal() {
         }
     });
 }
-  
+
 /**
  * Toggle language between Hausa and English
  * @param {string} language - The language to switch to ('ha' for Hausa, 'en' for English)
  */
 function toggleLanguage(language) {
-   const currentPath = window.location.pathname;
+    const currentPath = window.location.pathname;
     const currentSearch = window.location.search;
-    
+
     // Set the language preference
     localStorage.setItem('language', language);
     // Set a flag to indicate we're changing languages
     localStorage.setItem('languageChange', 'true');
-    
+
     // Force reload the page
     window.location.reload();
 }
 
 // Add to views.js
 function showReportModal(contentType, contentId, contentPreview) {
-  const modalHtml = `
+    const modalHtml = `
     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
         <div class="flex justify-between items-center mb-4">
@@ -2731,7 +3581,7 @@ function showReportModal(contentType, contentId, contentPreview) {
 
         <div class="mb-4 p-4 bg-gray-100 dark:bg-gray-700 rounded">
           <p class="text-sm text-gray-600 dark:text-gray-400">Content Preview:</p>
-          <p class="mt-1">${contentPreview}</p>
+          <p class="mt-1" data-user-content="true">${contentPreview}</p>
         </div>
 
         <form id="reportForm" class="space-y-4">
@@ -2761,31 +3611,33 @@ function showReportModal(contentType, contentId, contentPreview) {
     </div>
   `;
 
-  const modalContainer = document.createElement('div');
-  modalContainer.innerHTML = modalHtml;
-  document.body.appendChild(modalContainer);
-
-  document.getElementById('closeReportModal').addEventListener('click', () => {
-    document.body.removeChild(modalContainer);
-  });
-
-  document.getElementById('reportForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const reason = document.getElementById('reportReason').value;
-    const details = document.getElementById('reportDetails').value;
-
-    try {
-      await reportService.createReport({
-        contentType,
-        contentId,
-        reason,
-        details
-      });
-
-      showToast('Report submitted successfully', 'success');
-      document.body.removeChild(modalContainer);
-    } catch (error) {
-      showToast(error.message || 'Failed to submit report', 'error');
+    const modalContainer = document.createElement('div');
+    modalContainer.innerHTML = modalHtml;
+    document.body.appendChild(modalContainer);
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
     }
-  });
+    document.getElementById('closeReportModal').addEventListener('click', () => {
+        document.body.removeChild(modalContainer);
+    });
+
+    document.getElementById('reportForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const reason = document.getElementById('reportReason').value;
+        const details = document.getElementById('reportDetails').value;
+
+        try {
+            await reportService.createReport({
+                contentType,
+                contentId,
+                reason,
+                details
+            });
+
+            showToast('Report submitted successfully', 'success');
+            document.body.removeChild(modalContainer);
+        } catch (error) {
+            showToast(error.message || 'Failed to submit report', 'error');
+        }
+    });
 }

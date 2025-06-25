@@ -335,7 +335,7 @@ async function loadDashboard() {
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
                     <div class="h-20 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}"></div>
                     <div class="p-4">
-                        <h3 class="font-semibold text-lg mb-1">${course.name}</h3>
+                        <h3 class="font-semibold text-lg mb-1" data-user-content="true">${course.name}</h3>
                         <div class="flex items-center justify-between">
                         <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
                             ${course.code}
@@ -410,7 +410,7 @@ async function loadDashboard() {
                         <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer" onclick="showAssignmentModal('${assignment._id}')">
                             <div class="flex justify-between items-start">
                             <div>
-                                <h3 class="font-medium">${assignment.title}</h3>
+                                <h3 class="font-medium" data-user-content="true">${assignment.title}</h3>
                                 <div class="flex items-center mt-1">
                                 <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
                                     ${courseCode}
@@ -465,7 +465,7 @@ async function loadDashboard() {
             return `
                         <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer ${discussion.isAnnouncement ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30' : ''}" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
                             <div class="flex justify-between items-start">
-                            <h3 class="font-medium">
+                            <h3 class="font-medium" data-user-content="true">
                                 ${discussion.isAnnouncement ? '<i class="fas fa-bullhorn text-blue-500 mr-1"></i> ' : ''}
                                 ${discussion.title}
                             </h3>
@@ -508,18 +508,18 @@ async function loadDashboard() {
                 </div>
                 <div class="flex-1 flex flex-col">
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-10 flex-1 flex flex-col">
-                    <div class="font-medium text-lg mb-2">${getCurrentMonth()}</div>
+                    <div class="font-medium font-semibold text-lg mb-2">${getCurrentMonth()}</div>
                     <div class="grid grid-cols-7 gap-1 text-xs mb-2">
-                    <div>Su</div>
-                    <div>Mo</div>
-                    <div>Tu</div>
-                    <div>We</div>
-                    <div>Th</div>
-                    <div>Fr</div>
-                    <div>Sa</div>
+                        <div class="text-center font-semibold">Sun</div>
+                        <div class="text-center font-semibold">Mon</div>
+                        <div class="text-center font-semibold">Tue</div>
+                        <div class="text-center font-semibold">Wed</div>
+                        <div class="text-center font-semibold">Thu</div>
+                        <div class="text-center font-semibold">Fri</div>
+                        <div class="text-center font-semibold">Sat</div>
                     </div>
                     <div class="grid grid-cols-7 gap-1 flex-1">
-                    ${generateCalendarDays(upcomingAssignments)}
+                        ${generateCalendarDays(upcomingAssignments)}
                     </div>
                 </div>
                 </div>
@@ -558,7 +558,7 @@ async function loadDashboard() {
                             </span>
                         ` : ''}
                     </div>
-                    <div class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">${announcement.content}</div>
+                    <div class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2" data-user-content="true">${announcement.content}</div>
                 </div>
             </div>
         </div>
@@ -669,6 +669,7 @@ async function loadCourses() {
                                 data-name="${course.name}"
                                 data-code="${course.code}"
                                 data-created-at="${course.createdAt}"
+                                data-user-content="true"
                                 onclick="loadView('course-detail', {courseId: '${course._id}'})">
                                 <div class="h-32 bg-gradient-to-r relative" style="background-color: ${course.color || '#5D5CDE'}">
                                     ${course.instructor._id === currentUser._id ? `
@@ -678,7 +679,7 @@ async function loadCourses() {
                                     ` : ''}
                                 </div>
                                 <div class="p-5">
-                                    <h3 class="text-lg font-semibold mb-1">${course.name}</h3>
+                                    <h3 class="text-lg font-semibold mb-1" data-user-content="true">${course.name}</h3>
                                     <div class="flex items-center justify-between mb-3">
                                         <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
                                             ${course.code}
@@ -719,10 +720,11 @@ async function loadCourses() {
                             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer course-card" 
                                 data-id="${course._id}" 
                                 data-name="${course.name}"
+                                data-user-content="true"
                                 data-code="${course.code}">
                                 <div class="h-32 bg-gradient-to-r" style="background-color: ${course.color || '#5D5CDE'}"></div>
                                 <div class="p-5">
-                                    <h3 class="text-lg font-semibold mb-1">${course.name}</h3>
+                                    <h3 class="text-lg font-semibold mb-1" data-user-content="true">${course.name}</h3>
                                     <div class="flex items-center justify-between mb-3">
                                         <span class="px-2 py-1 text-xs rounded-full" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
                                             ${course.code}
@@ -964,7 +966,9 @@ function showCreateCourseModal() {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Track selected color
     let selectedColor = availableColors[0];
 
@@ -1041,7 +1045,7 @@ function showCoursePreviewModal(course) {
                 <div class="p-6">
                     <div class="flex justify-between items-start mb-4">
                         <div>
-                            <h3 class="text-2xl font-semibold">${course.name}</h3>
+                            <h3 class="text-2xl data-user-content="true" font-semibold">${course.name}</h3>
                             <div class="flex items-center mt-1">
                                 <span class="px-2 py-1 text-xs rounded-full mr-2" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
                                     ${course.code}
@@ -1088,7 +1092,9 @@ function showCoursePreviewModal(course) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closePreviewModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -1223,7 +1229,7 @@ async function loadCourseDetail(courseId) {
                 </div>
                 
                 <div class="p-6 relative">
-                    <h1 class="text-2xl font-bold">${course.name}</h1>
+                    <h1 class="text-2xl font-bold" data-user-content="true">${course.name}</h1>
                     <div class="flex flex-wrap items-center gap-2 mt-1 mb-4">
                         <span class="px-2 py-1 text-sm rounded font-medium" style="background-color: ${course.color || '#5D5CDE'}25; color: ${course.color || '#5D5CDE'}">
                             ${course.code}
@@ -1286,7 +1292,7 @@ async function loadCourseDetail(courseId) {
                       <div>
                         <p class="font-medium">${announcement.author.firstName} ${announcement.author.lastName} <span class="text-gray-500 dark:text-gray-400 font-normal text-sm">• ${formatTimeAgo(announcement.createdAt)}</span></p>
                         <p class="text-sm font-semibold text-black-500 dark:text-black-400">${announcement.title}</p>
-                        <p class="mt-1">${announcement.content}</p>
+                        <p class="mt-1" data-user-content="true">${announcement.content}</p>
                       </div>
                     </div>
                   </div>
@@ -1414,7 +1420,7 @@ async function loadCourseDetail(courseId) {
                                 ${courseDiscussions.slice(0, 5).map(discussion => `
                                     <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer" onclick="loadView('discussion-detail', {discussionId: '${discussion._id}'})">
                                         <div class="flex items-center justify-between">
-                                            <h3 class="font-medium flex items-center">
+                                            <h3 class="font-medium flex items-center" data-user-content="true">
                                                 ${discussion.title}
                                                 ${discussion.isPinned ? `
                                                     <span class="ml-2 text-yellow-500 dark:text-yellow-400" title="Pinned">
@@ -1424,7 +1430,7 @@ async function loadCourseDetail(courseId) {
                                             </h3>
                                             <span class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(discussion.createdAt)}</span>
                                         </div>
-                                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1">${discussion.content}</p>
+                                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-1" data-user-content="true">${discussion.content}</p>
                                         <div class="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
                                             <img src="${getProfileImageUrl(discussion.author)}" alt="${discussion.author.firstName}" class="w-5 h-5 rounded-full mr-2">
                                             ${discussion.author.firstName} ${discussion.author.lastName}
@@ -1470,7 +1476,7 @@ async function loadCourseDetail(courseId) {
                                     <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-750 rounded-lg ${!resource.isVisible ? 'opacity-70' : ''}">
                                         ${getResourceIcon(resource)}
                                         <div class="ml-3 flex-1 min-w-0">
-                                            <p class="font-medium truncate">${resource.title}</p>
+                                            <p class="font-medium truncate" data-user-content="true">${resource.title}</p>
                                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
                                                 ${getResourceTypeLabel(resource)}
                                                 ${!resource.isVisible ? ' • Hidden from students' : ''}
@@ -1857,7 +1863,9 @@ function showCourseSettingsModal(course) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeSettingsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -1957,7 +1965,9 @@ function showCourseAppearanceModal(course) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Track selected color
     let selectedColor = course.color || '#5D5CDE';
 
@@ -2027,7 +2037,7 @@ function showCourseInfoModal(course) {
                 <form id="infoForm" class="space-y-4">
                     <div>
                         <label class="block text-gray-700 dark:text-gray-300 mb-2">Course Name <span class="text-red-500">*</span></label>
-                        <input type="text" id="courseName" value="${course.name}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
+                        <input type="text" data-user-content="true" id="courseName" value="${course.name}" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                     </div>
                     
                     <div>
@@ -2059,7 +2069,9 @@ function showCourseInfoModal(course) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeInfoModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -2170,7 +2182,9 @@ function showEnrollmentOptionsModal(course) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Track enrollment code
     let enrollmentCode = course.enrollmentKey;
     let codeChanged = false;
@@ -2252,7 +2266,9 @@ function showManageStudentsModal(course) {
     const loadingContainer = document.createElement('div');
     loadingContainer.innerHTML = loadingModalHtml;
     document.body.appendChild(loadingContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(loadingContainer);
+    }
     // Fetch detailed student data
     fetchStudentData(course)
         .then(students => {
@@ -2390,7 +2406,9 @@ function displayStudentManagementModal(course, students) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeStudentsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -2495,7 +2513,9 @@ function showAddStudentModal(course, parentModal) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     const closeAddStudentModal = () => {
         document.body.removeChild(modalContainer);
@@ -2556,7 +2576,7 @@ function showDangerZoneModal(course) {
                         <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
                             Archiving a course will make it read-only for all students. No new submissions or discussions will be allowed.
                         </p>
-                        <button id="archiveCourseBtn" class="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition">
+                        <button id="archiveCourseBtn" data-user-content="true" class="mt-3 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition">
                             Archive Course
                         </button>
                     </div>
@@ -2585,7 +2605,9 @@ function showDangerZoneModal(course) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     const closeDangerModal = () => {
         document.body.removeChild(modalContainer);
@@ -2689,7 +2711,9 @@ function showGenerateCourseLinkModal(courseId) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeGenerateLinkModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -2778,7 +2802,9 @@ function showCourseLinkModal(link) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     const closeLinkModal = () => {
         document.body.removeChild(modalContainer);
@@ -2803,7 +2829,9 @@ function showCourseLinksModal(course) {
     const loadingContainer = document.createElement('div');
     loadingContainer.innerHTML = loadingModalHtml;
     document.body.appendChild(loadingContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(loadingContainer);
+    }
     // Fetch course links
     courseLinkService.getCourseLinks(course._id)
         .then(response => {
@@ -2844,7 +2872,7 @@ function displayCourseLinksModal(course, links) {
                 
                 <div class="mb-4">
                     <div class="flex justify-between items-center mb-4">
-                        <p class="text-gray-600 dark:text-gray-300">Manage enrollment links for ${course.name}</p>
+                        <p class="text-gray-600 dark:text-gray-300" data-user-content="true">Manage enrollment links for ${course.name}</p>
                         <button id="generateNewLinkBtn" class="px-3 py-1.5 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
                             <i class="fas fa-plus mr-1"></i> Generate New Link
                         </button>
@@ -2941,7 +2969,9 @@ function displayCourseLinksModal(course, links) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeLinksModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -2999,7 +3029,7 @@ async function loadDiscussionDetail(discussionId) {
             <div class="mb-4">
                 <div class="flex items-center justify-between">
                     <a href="#" class="text-primary dark:text-primaryLight hover:underline flex items-center mb-2" onclick="loadView('course-detail', {courseId: '${discussion.course._id}'}); return false;">
-                        <i class="fas fa-arrow-left mr-2"></i>
+                        <i class="fas fa-arrow-left mr-2" data-user-content="true"></i>
                         Back to ${discussion.course.name}
                     </a>
                     <div class="flex items-center gap-2">
@@ -3009,11 +3039,11 @@ async function loadDiscussionDetail(discussionId) {
                             </span>
                         ` : ''}
                         ${(discussion.author._id !== currentUser._id) ? `
-                            <button onclick="showReportModal('discussion', '${discussion._id}', '${discussion.title}')" 
+                            <button data-user-content="true" onclick="showReportModal('discussion', '${discussion._id}', '${discussion.title}')" 
                             class="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400">
                             <i class="fas fa-flag"></i>
                             </button>
-` :                         ''}
+` : ''}
                         <!-- 🗑 Delete Button (Only for author, instructor, or admin) -->
                         ${(discussion.author._id === currentUser._id || currentUser.role === 'instructor' || currentUser.role === 'admin') ? `
                             <button class="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition"
@@ -3025,7 +3055,7 @@ async function loadDiscussionDetail(discussionId) {
                         ` : ''}
                     </div>
                 </div>
-                <h1 class="text-2xl font-bold">${discussion.title}</h1>
+                <h1 class="text-2xl font-bold" data-user-content="true">${discussion.title}</h1>
                 <div class="flex items-center mt-2 mb-4">
                     <img src="${getProfileImageUrl(discussion.author)}" alt="${discussion.author.firstName}" class="w-8 h-8 rounded-full mr-2">
                     <div>
@@ -3033,7 +3063,7 @@ async function loadDiscussionDetail(discussionId) {
                         <p class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(discussion.createdAt)}</p>
                     </div>
                 </div>
-                <div class="prose dark:prose-invert max-w-none">
+                <div class="prose dark:prose-invert max-w-none" data-user-content="true">
                     ${discussion.content}
                 </div>
                 
@@ -3092,13 +3122,13 @@ async function loadDiscussionDetail(discussionId) {
                             <img src="${getProfileImageUrl(reply.author)}" alt="${reply.author.firstName}" class="w-10 h-10 rounded-full mr-3">
                             <div class="flex-1">
                                 <div class="flex items-center">
-                                    <p class="font-medium">${reply.author.firstName} ${reply.author.lastName}</p>
+                                    <p class="font-medium" data-user-content="true">${reply.author.firstName} ${reply.author.lastName}</p>
                                     <p class="text-xs text-gray-500 dark:text-gray-400 ml-2">${formatTimeAgo(reply.createdAt)}</p>
                                     ${reply.isEdited ? `
                                         <p class="text-xs text-gray-500 dark:text-gray-400 ml-2">(edited)</p>
                                     ` : ''}
                                 </div>
-                                <div class="mt-1 text-gray-700 dark:text-gray-300">
+                                <div class="mt-1 text-gray-700 dark:text-gray-300" data-user-content="true">
                                     ${reply.content}
                                 </div>
                                 <div class="mt-2 flex items-center text-gray-500 dark:text-gray-400 text-sm">
@@ -3306,7 +3336,7 @@ async function loadResources(courseId = null) {
                                 <select id="courseFilter" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                     <option value="all">All Courses</option>
                                     ${userCourses.map(course => `
-                                        <option value="${course._id}">${course.code} - ${course.name}</option>
+                                        <option value="${course._id}" data-user-content="true">${course.code} - ${course.name}</option>
                                     `).join('')}
                                 </select>
                             </div>
@@ -3337,7 +3367,7 @@ async function loadResources(courseId = null) {
                         
                         <!-- Sort options -->
                         <div>
-                            <h3 class="font-medium text-sm uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Sort By</h3>
+                            <h3 class="font-medium text-sm tracking-wider text-gray-500 dark:text-gray-400 mb-2">SORT BY</h3>
                             <select id="resourceSort" class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                 <option value="recent">Recently Added</option>
                                 <option value="title">Title (A-Z)</option>
@@ -3559,7 +3589,7 @@ function generateResourceCard(resource) {
                         ${getResourceTypeIcon(resource)}
                         <div class="ml-3">
                             <h3 class="font-semibold text-lg">
-                                <a href="#" class="hover:text-primary dark:hover:text-primaryLight resource-title-link" data-id="${resource._id}">
+                                <a href="#" data-user-content="true" class="hover:text-primary dark:hover:text-primaryLight resource-title-link" data-id="${resource._id}">
                                     ${resource.title}
                                 </a>
                                 ${isPinned ? '<i class="fas fa-thumbtack ml-2 text-yellow-500 dark:text-yellow-400" title="Pinned"></i>' : ''}
@@ -3605,7 +3635,7 @@ function generateResourceCard(resource) {
                 </div>
                 
                 <p class="text-gray-600 dark:text-gray-300 text-sm mb-3 line-clamp-2">
-                    ${resource.description || 'No description provided.'}
+                    <span data-user-content="true">${resource.description || ''}</span>${!resource.description ? 'No Description Provided' : ''}
                 </p>
                 
                 <div class="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
@@ -3997,7 +4027,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                             <div class="flex items-start">
                                 ${getResourceTypeIcon(resource)}
                                 <div class="ml-3">
-                                    <h1 class="text-2xl font-bold">${resource.title}</h1>
+                                    <h1 class="text-2xl font-bold" data-user-content="true">${resource.title}</h1>
                                     <div class="flex items-center mt-1">
                                         <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: ${courseColor}25; color: ${courseColor}">
                                             ${courseCode}
@@ -4081,7 +4111,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                         <div id="infoTabContent" class="resource-tab-content ${activeTab !== 'info' ? 'hidden' : ''}">
                             <div class="mb-6">
                                 <h2 class="font-semibold text-lg mb-3">Description</h2>
-                                <div class="prose dark:prose-invert max-w-none">
+                                <div class="prose dark:prose-invert max-w-none" data-user-content="true">
                                     ${resource.description ? marked.parse(resource.description) : '<p class="text-gray-500 dark:text-gray-400">No description provided.</p>'}
                                 </div>
                             </div>
@@ -4111,7 +4141,7 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                                         <div class="flex items-center">
                                             <i class="fas fa-link text-blue-500 text-2xl"></i>
                                             <div class="ml-3">
-                                                <p class="font-medium">${resource.title}</p>
+                                                <p class="font-medium" data-user-content="true">${resource.title}</p>
                                                 <p class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
                                                     ${resource.link || 'Link'}
                                                 </p>
@@ -4155,17 +4185,15 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                                         <div class="comment-item p-4 border border-gray-200 dark:border-gray-700 rounded-lg mb-4" data-id="${comment._id}">
                                             <div class="flex justify-between items-start mb-2">
                                                 <div class="flex items-center">
-                                                    <img src="${getProfileImageUrl(comment.user)}" alt="${comment.user?.firstName || 'User'}" class="w-8 h-8 rounded-full mr-3">
+                                                    <img src="${getProfileImageUrl(comment.user?._id || comment.user)}" alt="${comment.user?.firstName || 'User'}" class="w-8 h-8 rounded-full mr-3">
                                                     <div>
                                                         <p class="font-medium">${comment.user?.firstName || ''} ${comment.user?.lastName || ''}</p>
                                                         <p class="text-xs text-gray-500 dark:text-gray-400">${formatTimeAgo(comment.createdAt)}</p>
                                                     </div>
                                                 </div>
-                                                ${(currentUser._id === (comment.user?._id || comment.user)) || currentUser.role === 'admin' ? `
                                                     <div class="relative">
-                                                        // Change the report button section in discussion detail view
-                                                        ${(discussion.author._id !== currentUser._id) ? `
-                                                        <button onclick="showReportModal('discussion', '${discussion._id}', '${discussion.title}')" 
+                                                        ${(currentUser._id !== (comment.user?._id || comment.user)) || currentUser.role === 'admin' ? `
+                                                        <button onclick="showReportModal('comment', '${comment._id}', '${comment.content}')" 
                                                          class="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400">
                                                         <i class="fas fa-flag"></i>
                                                         </button>
@@ -4182,14 +4210,13 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                                                             </a>
                                                         </div>
                                                     </div>
-                                                ` : ''}
                                             </div>
                                             <div class="comment-content ml-11">
-                                                <p class="text-gray-700 dark:text-gray-300 whitespace-pre-line">${comment.content}</p>
+                                                <p data-user-content="true" class="text-gray-700 dark:text-gray-300 whitespace-pre-line">${comment.content}</p>
                                             </div>
                                             <!-- Edit form (hidden by default) -->
                                             <div class="comment-edit-form ml-11 mt-2 hidden">
-                                                <textarea class="edit-comment-content w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200" rows="3">${comment.content}</textarea>
+                                                <textarea data-user-content="true" class="edit-comment-content w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200" rows="3">${comment.content}</textarea>
                                                 <div class="flex justify-end mt-2 space-x-2">
                                                     <button type="button" class="cancel-edit-btn px-3 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition">
                                                         Cancel
@@ -4665,7 +4692,7 @@ async function loadDiscussions() {
                                         <div class="flex justify-between items-start">
                                             <div>
                                                 <div class="flex items-center gap-2">
-                                                    <h4 class="font-medium">${discussion.title}</h4>
+                                                    <h4 class="font-medium" data-user-content="true">${discussion.title}</h4>
                                         
                                                     ${discussion.isPinned ? `
                                                         <span class="text-yellow-500 dark:text-yellow-400" title="Pinned">
@@ -4687,7 +4714,7 @@ async function loadDiscussions() {
                                                 <i class="far fa-comment-alt mr-1"></i> ${discussion.replyCount || discussion.replies?.length || 0} replies
                                             </div>
                                         </div>
-                                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300 line-clamp-2" data-user-content="true">
                                             ${discussion.content}
                                         </p>
                                         ${discussion.tags && discussion.tags.length > 0 ? `
@@ -4724,7 +4751,7 @@ async function loadDiscussions() {
                                         <span class="text-xs font-semibold">${discussion.replyCount || discussion.replies?.length || 0}</span>
                                     </div>
                                     <div>
-                                        <p class="font-medium line-clamp-1">${discussion.title}</p>
+                                        <p class="font-medium line-clamp-1" data-user-content="true">${discussion.title}</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400">
                                             ${discussion.course.code} • ${formatTimeAgo(discussion.createdAt)}
                                         </p>
@@ -4745,10 +4772,10 @@ async function loadDiscussions() {
                                         <span class="font-semibold">My Discussions:</span> ${discussions.filter(d => d.author._id === currentUser._id).length}
                                     </p>
                                     <p class="mb-2 text-gray-700 dark:text-gray-300">
-                                        <span class="font-semibold">Total Replies:</span> ${discussions.reduce((total, discussion) => {
+                                        <span class="font-semibold">Total Replies:</span> <span data-user-content="true">${discussions.reduce((total, discussion) => {
             const myReplies = (discussion.replies || []).filter(reply => reply.author._id === currentUser._id).length;
             return total + myReplies;
-        }, 0)}
+        }, 0)}</span>
                                     </p>
                                     <button id="viewMyDiscussionsBtn" class="mt-2 w-full px-4 py-2 bg-primary hover:bg-primaryDark text-white rounded-lg transition">
                                         View My Discussions
@@ -4951,7 +4978,7 @@ function showNewDiscussionModal() {
                                 <label class="block text-gray-700 dark:text-gray-300 mb-2">Course</label>
                                 <select id="discussionCourse" required class="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                                     <option value="">Select a course</option>
-                                    ${courses.map(course => `<option value="${course._id}">${course.name} (${course.code})</option>`).join('')}
+                                    ${courses.map(course => `<option data-user-content="true" value="${course._id}">${course.name} (${course.code})</option>`).join('')}
                                 </select>
                             </div>
                             
@@ -4982,7 +5009,9 @@ function showNewDiscussionModal() {
             const modalContainer = document.createElement('div');
             modalContainer.innerHTML = modalHtml;
             document.body.appendChild(modalContainer);
-
+            if (localStorage.getItem('language') === 'ha') {
+                applyHausaTranslations(modalContainer);
+            }
             // Setup event listeners
             document.getElementById('closeDiscussionModal').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
@@ -5147,7 +5176,7 @@ async function loadAssignments() {
                 <div class="mt-2 sm:mt-0 flex space-x-2">
                     <select id="courseFilter" class="px-4 py-2 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-800 dark:text-gray-200">
                         <option value="all">All Courses</option>
-                        ${courses.map(course => `<option value="${course._id}">${course.code} - ${course.name}</option>`).join('')}
+                        ${courses.map(course => `<option data-user-content="true" value="${course._id}">${course.code} - ${course.name}</option>`).join('')}
                     </select>
                     
                     ${currentUser.role === 'instructor' ? `
@@ -5702,14 +5731,14 @@ function viewSubmissions(assignmentId) {
                     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
                             <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-xl font-semibold">Submissions: ${assignment.title}</h3>
+                                <h3 class="text-xl font-semibold">Submissions: <span data-user-content="true">${assignment.title}</span</h3>
                                 <button id="closeSubmissionsModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                                     <i class="fas fa-times"></i>
                                 </button>
                             </div>
                             
                             <div class="mb-4">
-                                <p><span class="font-medium">Course:</span> ${course.name} (${course.code})</p>
+                                <p data-user-content="true"><span class="font-medium">Course:</span> <span data-user-content="true">${course.name} (${course.code})</span> </p>
                                 <p><span class="font-medium">Due Date:</span> ${formatDate(assignment.dueDate)}</p>
                                 <p><span class="font-medium">Total Students:</span> ${course.students.length}</p>
                                 <p><span class="font-medium">Submissions:</span> ${submissions.length} / ${course.students.length}</p>
@@ -5820,7 +5849,9 @@ function viewSubmissions(assignmentId) {
                 const modalContainer = document.createElement('div');
                 modalContainer.innerHTML = modalHtml;
                 document.body.appendChild(modalContainer);
-
+                if (localStorage.getItem('language') === 'ha') {
+                    applyHausaTranslations(modalContainer);
+                }
                 // Setup event listeners
                 document.getElementById('closeSubmissionsModal').addEventListener('click', () => {
                     document.body.removeChild(modalContainer);
@@ -5899,7 +5930,7 @@ function showSubmissionDetailModal(submission, assignment) {
                 <div class="mb-6">
                     <div class="flex flex-wrap items-start justify-between mb-4">
                         <div>
-                            <p class="font-bold text-lg">${assignment.title}</p>
+                            <p class="font-bold text-lg" data-user-content="true">${assignment.title}</p>
                             <p class="text-gray-600 dark:text-gray-400">${assignment.pointsPossible} points possible</p>
                         </div>
                         <div class="text-right">
@@ -5919,7 +5950,7 @@ function showSubmissionDetailModal(submission, assignment) {
                             <div class="mb-4">
                                 <h5 class="text-sm font-medium mb-2">Text Response:</h5>
                                 <div class="bg-gray-50 dark:bg-gray-750 p-4 rounded-lg">
-                                    <p class="whitespace-pre-line">${submission.textContent}</p>
+                                    <p data-user-content="true" class="whitespace-pre-line">${submission.textContent}</p>
                                 </div>
                             </div>
                         ` : ''}
@@ -5980,7 +6011,9 @@ function showSubmissionDetailModal(submission, assignment) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Setup event listeners
     document.getElementById('closeSubmissionDetailModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -6364,7 +6397,7 @@ async function loadProfile(isRefresh = false) {
                                         ${roleSpecificData.studentEngagement.map(course => `
                                             <div>
                                                 <div class="flex justify-between mb-1">
-                                                    <span class="text-sm">${course.name}</span>
+                                                    <span class="text-sm" data-user-content="true" >${course.name}</span>
                                                     <span class="text-sm font-medium">${course.engagement}%</span>
                                                 </div>
                                                 <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
@@ -6428,7 +6461,7 @@ async function loadProfile(isRefresh = false) {
                                     <div class="flex items-center p-3 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-700 transition cursor-pointer" onclick="loadView('course-detail', {courseId: '${course._id}'})">
                                         <div class="w-12 h-12 rounded flex-shrink-0" style="background-color: ${course.color || '#5D5CDE'}"></div>
                                         <div class="ml-3 flex-1 min-w-0">
-                                            <p class="font-medium truncate">${course.name}</p>
+                                            <p class="font-medium truncate" data-user-content="true">${course.name}</p>
                                             <p class="text-sm text-gray-500 dark:text-gray-400 truncate">${course.code}</p>
                                         </div>
                                         <i class="fas fa-chevron-right text-gray-800"></i>
@@ -6747,7 +6780,9 @@ function showActivityHistoryModal() {
             const modalContainer = document.createElement('div');
             modalContainer.innerHTML = modalHtml;
             document.body.appendChild(modalContainer);
-
+            if (localStorage.getItem('language') === 'ha') {
+                applyHausaTranslations(modalContainer);
+            }
             // Set up event listeners
             document.getElementById('closeActivityModal').addEventListener('click', () => {
                 document.body.removeChild(modalContainer);
@@ -6820,7 +6855,9 @@ function showEditProfileModal(userData) {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up event listeners
     document.getElementById('closeEditProfileModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -6918,7 +6955,9 @@ function showChangeAvatarModal() {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Get elements
     const avatarFile = document.getElementById('avatarFile');
     const preview = document.getElementById('avatarPreview');
@@ -7093,7 +7132,9 @@ function showAccountSettingsModal() {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Set up close button event listeners
     document.getElementById('closeSettingsModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
@@ -7976,7 +8017,9 @@ function showChangePasswordModal() {
     const modalContainer = document.createElement('div');
     modalContainer.innerHTML = modalHtml;
     document.body.appendChild(modalContainer);
-
+    if (localStorage.getItem('language') === 'ha') {
+        applyHausaTranslations(modalContainer);
+    }
     // Close modal event
     document.getElementById('closePasswordModal').addEventListener('click', () => {
         document.body.removeChild(modalContainer);
