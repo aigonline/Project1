@@ -221,6 +221,94 @@ function hideUIElements() {
     sidebar.classList.add('hidden');
 }
 
+document.addEventListener('DOMContentLoaded', async function () {
+    const landing = document.getElementById('landingPage');
+    const app = document.getElementById('appContainer');
+    const getStartedBtn = document.getElementById('getStartedBtn');
+    const sidebar = document.getElementById('sidebar');
+
+    // Helper: Show/hide elements
+    function showLanding() {
+        if (landing) landing.style.display = '';
+        if (app) app.style.display = 'none';
+    }
+    function showApp() {
+        if (landing) landing.style.display = 'none';
+        if (app) app.style.display = '';
+    }
+
+    // Check authentication
+    let isAuthenticated = false;
+    try {
+        isAuthenticated = await checkAuth();
+    } catch (e) {
+        isAuthenticated = false;
+    }
+
+    if (isAuthenticated) {
+        showApp();
+        loadView('dashboard');
+    } else {
+        showLanding();
+        if (getStartedBtn) {
+            getStartedBtn.onclick = function () {
+                showApp();
+                loadLoginPage();
+            };
+        }
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    const sidebar = document.getElementById('sidebar');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const showSidebarBtn = document.getElementById('showSidebarBtn');
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+    const mainContent = document.querySelector('main.flex-1');
+
+    // Show sidebar (when floating button is clicked)
+    if (showSidebarBtn) {
+        showSidebarBtn.addEventListener('click', function () {
+            sidebar.classList.remove('hidden');
+            modalBackdrop.classList.remove('hidden');
+            showSidebarBtn.style.display = 'none';
+            if (mainContent) mainContent.classList.add('md:ml-64');
+        });
+    }
+
+    // Hide sidebar (when close button or backdrop is clicked)
+    function hideSidebar() {
+        sidebar.classList.add('hidden');
+        modalBackdrop.classList.add('hidden');
+        if (showSidebarBtn) showSidebarBtn.style.display = '';
+        if (mainContent) mainContent.classList.remove('md:ml-64');
+    }
+
+    if (toggleSidebarBtn) {
+        toggleSidebarBtn.addEventListener('click', hideSidebar);
+    }
+    if (modalBackdrop) {
+        modalBackdrop.addEventListener('click', hideSidebar);
+    }
+
+    // On desktop, always show sidebar and hide floating button/backdrop
+    function handleResize() {
+        if (window.innerWidth >= 768) { // md breakpoint
+            sidebar.classList.remove('hidden');
+            if (mainContent) mainContent.classList.add('md:ml-64');
+            if (showSidebarBtn) showSidebarBtn.style.display = 'none';
+            if (modalBackdrop) modalBackdrop.classList.add('hidden');
+        } else {
+            // On mobile, hide sidebar by default
+            sidebar.classList.add('hidden');
+            if (mainContent) mainContent.classList.remove('md:ml-64');
+            if (showSidebarBtn) showSidebarBtn.style.display = '';
+            if (modalBackdrop) modalBackdrop.classList.add('hidden');
+        }
+    }
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Run on load
+});
 // Update user info in the UI
 function updateUserInfo(userData = window.currentUser) {
     if (!userData) return;
@@ -283,13 +371,18 @@ function toggleSidebar() {
     sidebar.classList.toggle('hidden');
     modalBackdrop.classList.toggle('hidden');
 
-    if (!sidebar.classList.contains('hidden')) {
-        sidebar.classList.add('fixed', 'top-0', 'left-0', 'z-20', 'h-full');
+    // Main content area
+    const mainContent = document.querySelector('main.flex-1');
+    if (sidebar.classList.contains('hidden')) {
+        // Sidebar is hidden, remove margin
+        mainContent.classList.remove('md:ml-64');
+        modalBackdrop.classList.add('hidden');
     } else {
-        sidebar.classList.remove('fixed', 'top-0', 'left-0', 'z-20', 'h-full');
+        // Sidebar is visible, add margin
+        mainContent.classList.add('md:ml-64');
+        modalBackdrop.classList.remove('hidden');
     }
 }
-
 // Toggle dark mode
 function toggleDarkMode() {
     document.documentElement.classList.toggle('dark');
