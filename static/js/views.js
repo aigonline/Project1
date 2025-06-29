@@ -298,11 +298,11 @@ async function loadDashboard() {
 
             // Filter announcements for user's courses
             recentAnnouncements = allAnnouncements.filter(announcement =>
-                courses.some(course =>
-                    (typeof announcement.course === 'object' && announcement.course._id === course._id) ||
-                    announcement.course === course._id
-                )
-            );
+    announcement.course && courses.some(course =>
+        (typeof announcement.course === 'object' && announcement.course._id === course._id) ||
+        announcement.course === course._id
+    )
+);
 
             // Sort by most recent
             recentAnnouncements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

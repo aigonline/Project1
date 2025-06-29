@@ -3012,7 +3012,7 @@ function applyHausaTranslations(targetElement = null, visitedElements = new Set(
     document.documentElement.setAttribute('lang', 'ha');
 
     // Translate any existing modals and portals
-    translateModalsAndPortals();
+    translateModalsAndPortals(visitedElements);
 
     // Optional: Dispatch custom event to notify other parts of the application
     const translationEvent = new CustomEvent('translationApplied', {
@@ -3239,11 +3239,6 @@ function translateElement(element) {
     }
 }
 
-// Usage example:
-// applyHausaTranslations();
-// const observer = observeDynamicContent(); // To handle dynamic content
-// observer.disconnect(); // To stop observing when needed
-
 // Additional helper functions for modal-specific scenarios
 
 // Function to translate modals when they become visible
@@ -3287,17 +3282,19 @@ function translateVisibleModals() {
 
     const visibleModals = document.querySelectorAll(modalSelectors.join(', '));
     visibleModals.forEach(modal => {
-        applyHausaTranslations(modal);
+        applyHausaTranslations(modal, visitedElements);
     });
 }
 
 // Function to force translation of specific modal by ID or selector
 function translateModal(selector) {
     if (localStorage.getItem('language') !== 'ha') return;
+   
+    
 
     const modal = document.querySelector(selector);
     if (modal) {
-        applyHausaTranslations(modal);
+        applyHausaTranslations(modal, new Set());
         return true;
     }
     return false;
@@ -3306,7 +3303,8 @@ function translateModal(selector) {
 // Comprehensive initialization function
 function initHausaTranslation() {
     // Apply initial translations
-    applyHausaTranslations();
+    applyHausaTranslations(undefined, new Set());
+;
 
     // Set up dynamic content observer
     const observer = observeDynamicContent();
@@ -3320,7 +3318,7 @@ function initHausaTranslation() {
             clearInterval(modalCheckInterval);
             return;
         }
-        translateModalsAndPortals();
+        translateModalsAndPortals(new Set());
     }, 2000);
 
     // Return cleanup function
@@ -3329,12 +3327,7 @@ function initHausaTranslation() {
         clearInterval(modalCheckInterval);
     };
 }
-// Usage example:
-// applyHausaTranslations();
-// const observer = observeDynamicContent(); // To handle dynamic content
-// observer.disconnect(); // To stop observing when needed
-// Usage example:
-// applyHausaTranslations();
+
 /**
   Reset interface language to default (English)
  **/
@@ -3351,12 +3344,12 @@ function initializeLanguage() {
     const savedLanguage = localStorage.getItem('language');
     if (savedLanguage === 'ha') {
         // Apply translations immediately
-        applyHausaTranslations();
+        applyHausaTranslations(undefined, new Set());
         // Add mutation observer to handle dynamically added content
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.addedNodes.length) {
-                    applyHausaTranslations();
+                    applyHausaTranslations(undefined, new Set());
                 }
             });
         });
