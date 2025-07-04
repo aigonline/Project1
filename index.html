@@ -51,10 +51,10 @@
     </header>
 
     <div data-user-content="true" id="landingPage"
-        class="min-h-screen flex flex-col justify-between bg-gradient-to-br from-primary via-primary-light to-white dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white fade-in"
+        class="min-h-screen flex flex-col items-center justify-between bg-gradient-to-br from-primary via-primary-light to-white dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-white fade-in"
         style="animation: fadeIn 1s;">
         <!-- Hero Section -->
-        <header class="w-full px-6 py-6 flex justify-between items-center">
+        <header class="w-full max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
             <div class="flex items-center gap-2">
                 <img src="static/img/logo.png" alt="Logo" class="h-10 w-10 rounded-full shadow-lg"
                     onerror="this.style.display='none'">
@@ -67,7 +67,7 @@
             </nav>
         </header>
 
-        <main class="flex-1 flex flex-col items-center justify-center text-center px-4">
+        <main class="flex-1 flex flex-col items-center justify-center text-center px-4 w-full max-w-4xl mx-auto">
             <h1 class="text-4xl md:text-6xl font-extrabold mb-4 tracking-tight animate__animated animate__fadeInDown">
                 Empower Your Learning Journey</h1>
             <p class="text-lg md:text-2xl mb-8 max-w-2xl mx-auto animate__animated animate__fadeInUp animate__delay-1s">
@@ -79,7 +79,7 @@
                 Get Started
             </button>
             <!-- Animated illustration (optional) -->
-            <div class="mt-10">
+            <div class="mt-10 flex justify-center">
                 <img src="static/img/landing-illustration.svg" alt="Learning Illustration"
                     class="w-72 mx-auto drop-shadow-xl animate__animated animate__fadeInUp animate__delay-2s"
                     onerror="this.style.display='none'">
@@ -87,23 +87,23 @@
         </main>
 
         <!-- Features Section -->
-        <section id="features" class="w-full py-12 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md">
-            <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 px-6">
+        <section id="features" class="w-full py-12 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md flex justify-center">
+            <div class="max-w-5xl w-full mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 px-6">
                 <div
-                    class="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-900/80 transition hover:-translate-y-2 hover:shadow-2xl">
+                    class="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-900/80 transition hover:-translate-y-2 hover:shadow-2xl text-center">
                     <i class="fas fa-user-graduate text-3xl text-primary mb-4"></i>
                     <h3 class="font-bold text-xl mb-2">Student & Instructor Roles</h3>
                     <p>Role-based dashboards, assignments, grading, and feedback for a seamless academic experience.</p>
                 </div>
                 <div
-                    class="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-900/80 transition hover:-translate-y-2 hover:shadow-2xl">
+                    class="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-900/80 transition hover:-translate-y-2 hover:shadow-2xl text-center">
                     <i class="fas fa-book-open text-3xl text-primary mb-4"></i>
                     <h3 class="font-bold text-xl mb-2">Resource Sharing</h3>
                     <p>Upload files, share links, pin resources, and collaborate in real time with your peers and
                         instructors.</p>
                 </div>
                 <div
-                    class="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-900/80 transition hover:-translate-y-2 hover:shadow-2xl">
+                    class="p-6 rounded-lg shadow-lg bg-white dark:bg-gray-900/80 transition hover:-translate-y-2 hover:shadow-2xl text-center">
                     <i class="fas fa-comments text-3xl text-primary mb-4"></i>
                     <h3 class="font-bold text-xl mb-2">Discussions & Announcements</h3>
                     <p>Engage in course discussions, receive announcements, and stay updated with notifications.</p>
@@ -113,7 +113,7 @@
 
         <!-- About Section -->
         <section id="about"
-            class="w-full py-12 px-6 bg-gradient-to-r from-primary-light to-primary dark:from-gray-800 dark:to-gray-900 text-white text-center">
+            class="w-full py-12 px-6 bg-gradient-to-r from-primary-light to-primary dark:from-gray-800 dark:to-gray-900 text-white text-center flex justify-center">
             <div class="max-w-3xl mx-auto text-black">
                 <h2 class="text-3xl font-bold mb-4">About Virtual Campus</h2>
                 <p class="text-lg text-3xl font-semibold mb-4">
@@ -126,10 +126,10 @@
 
         <!-- Contact Section -->
         <footer id="contact"
-            class="w-full py-12 px-6 bg-gradient-to-r from-primary-light to-primary dark:from-gray-800 dark:to-gray-900 text-white text-center">
-            <hr style="color: cornflowerblue;">
-            <br>
-            <div class="max-w-xl mx-auto text-black text-2xl font-semibold">
+            class="w-full py-12 px-6 bg-gradient-to-r from-primary-light to-primary dark:from-gray-800 dark:to-gray-900 text-white text-center flex justify-center">
+            <div class="w-full max-w-xl mx-auto text-black text-2xl font-semibold">
+                <hr style="color: cornflowerblue;">
+                <br>
                 <p>Questions? <a href="mailto:support@virtualcampus.com"
                         class="text-primary font-semibold underline">Contact us</a></p>
                 <p class="mt-2 text-xs">&copy; 2025 Virtual Campus. All rights reserved.</p>

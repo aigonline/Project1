@@ -230,12 +230,10 @@ const assignmentService = {
     },
     submitAssignment: async (assignmentId, formData) => {
         // For file uploads, use FormData instead of JSON
-        return await fetch(`${API_URL}/assignments/${assignmentId}/submit`, {
+        return await fetchWithAuth(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
             method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`
-            },
-            body: formData
+            body: formData,
+            formData: true // Indicate that this is a FormData request
         }).then(async res => {
             if (!res.ok) {
                 const errData = await res.json();

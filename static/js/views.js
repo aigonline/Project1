@@ -508,7 +508,7 @@ async function loadDashboard() {
                 </div>
                 <div class="flex-1 flex flex-col">
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-10 flex-1 flex flex-col">
-                    <div class="font-medium font-semibold text-lg mb-2">${getCurrentMonth()}</div>
+                    <div class=" font-semibold text-lg mb-2">${getCurrentMonth()}</div>
                     <div class="grid grid-cols-7 gap-1 text-xs mb-2">
                         <div class="text-center font-semibold">Sun</div>
                         <div class="text-center font-semibold">Mon</div>
@@ -5506,7 +5506,7 @@ async function loadAssignments() {
             ` : `
                 <!-- Past Due Assignments Tab (Instructor) -->
                 <div id="pastDueTab-content" class="assignment-tab-content hidden">
-                    <div class="bg-white dark:bg-gray-800 dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
+                    <div class="bg-white  dark:bg-gray-800 rounded-lg shadow-md p-5 mb-6">
                         <h3 class="text-lg font-semibold mb-4">Past Due Assignments</h3>
                         ${pastDueAssignments.length > 0 ? `
                             <div class="overflow-x-auto">

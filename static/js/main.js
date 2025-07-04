@@ -1129,33 +1129,37 @@ function setupStudentEventListeners(assignment, mySubmission, modalContainer) {
                 }
             }
 
-            // Submit
-            try {
-                errorDiv.classList.add('hidden');
+            const submitBtn = submitForm.querySelector('button[type="submit"]');
+let originalText;
 
-                // Show loading state
-                const submitBtn = submitForm.querySelector('button[type="submit"]');
-                const originalText = submitBtn.innerHTML;
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+try {
+    errorDiv.classList.add('hidden');
 
-                await assignmentService.submitAssignment(assignment._id, formData);
+    // Show loading state
+    if (submitBtn) {
+        originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Submitting...';
+    }
 
-                // Remove modal and show success message
-                document.body.removeChild(modalContainer);
-                showToast('Assignment submitted successfully!');
+    await assignmentService.submitAssignment(assignment._id, formData);
 
-                // Reload the assignment view
-                loadView('assignments');
-            } catch (error) {
-                // Reset button
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+    // Remove modal and show success message
+    document.body.removeChild(modalContainer);
+    showToast('Assignment submitted successfully!');
 
-                // Show error
-                errorDiv.textContent = error.message || 'Failed to submit assignment. Please try again.';
-                errorDiv.classList.remove('hidden');
-            }
+    // Reload the assignment view
+    loadView('assignments');
+} catch (error) {
+    // Reset button
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+    // Show error
+    errorDiv.textContent = error.message || 'Failed to submit assignment. Please try again.';
+    errorDiv.classList.remove('hidden');
+}
         });
     }
 }
