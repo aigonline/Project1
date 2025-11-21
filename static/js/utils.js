@@ -118,9 +118,13 @@ function generateCalendarDays(events = []) {
 
 // Get profile image URL
 // Get profile image URL
+// Get profile image URL
 function getProfileImageUrl(user) {
+    // Get API base URL from environment or default
+    const API_BASE_URL = window.API_BASE_URL || 'https://project1-1bz0.onrender.com';
+    
     // Return default if no user
-    if (!user) return '/uploads/profile/default.jpg';
+    if (!user) return `${API_BASE_URL}/uploads/profile/default.jpg`;
     
     // Check if user has a custom profile picture
     if (user.profilePicture && user.profilePicture !== 'default.jpg') {
@@ -129,12 +133,12 @@ function getProfileImageUrl(user) {
             return user.profilePicture;
         }
         
-        // For uploaded files, use the profiles directory
-        return `/uploads/profile/${user.profilePicture}`;
+        // For uploaded files, use the backend server URL
+        return `${API_BASE_URL}/uploads/profile/${user.profilePicture}`;
     }
     
-    // Return default profile image
-    return '/uploads/profile/default.jpg';
+    // Return default profile image from backend
+    return `${API_BASE_URL}/uploads/profile/default.jpg`;
 }
 
 // Capitalize first letter
