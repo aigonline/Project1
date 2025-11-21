@@ -117,29 +117,24 @@ function generateCalendarDays(events = []) {
 }
 
 // Get profile image URL
+// Get profile image URL
 function getProfileImageUrl(user) {
-    if (!user) return  `https://picsum.photos/id/${(user?.firstName?.charCodeAt(0) || 0) % 30 + 1000}/100/100`;
-
-    // Check if user has a profile image
-    if (user.profilePicture) {
-        // Add timestamp to prevent caching
-        const timestamp = new Date().getTime();
-        
-        // If the profile picture is a full URL, use it directly
+    // Return default if no user
+    if (!user) return '/uploads/profiles/default.jpg';
+    
+    // Check if user has a custom profile picture
+    if (user.profilePicture && user.profilePicture !== 'default.jpg') {
+        // If it's a full URL (external image), use it directly
         if (user.profilePicture.startsWith('http')) {
-            return `${user.profilePicture}?t=${timestamp}`;
-        }
-        // For avatar uploads, ensure we're using the correct path
-        if (user.profilePicture.startsWith('avatar-')) {
-            return `/uploads/profile/${user.profilePicture}?t=${timestamp}`;
+            return user.profilePicture;
         }
         
-        // Fallback case: check if the file exists in profile directory
-        return `/uploads/profile/${user.profilePicture}?t=${timestamp}`;
+        // For uploaded files, use the profiles directory
+        return `/uploads/profiles/${user.profilePicture}`;
     }
     
-    // Return default profile image if no profile picture is set
-       return `/uploads/profile/default.png`;
+    // Return default profile image
+    return '/uploads/profiles/default.jpg';
 }
 
 // Capitalize first letter

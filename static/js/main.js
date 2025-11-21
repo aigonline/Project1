@@ -310,6 +310,9 @@ document.addEventListener('DOMContentLoaded', function () {
     handleResize(); // Run on load
 });
 // Update user info in the UI
+// Update user info in the UI
+// ...existing code...
+
 function updateUserInfo(userData = window.currentUser) {
     if (!userData) return;
 
@@ -322,19 +325,28 @@ function updateUserInfo(userData = window.currentUser) {
 
     if (sidebarName) sidebarName.textContent = `${userData.firstName} ${userData.lastName}`;
     if (sidebarRole) sidebarRole.textContent = capitalizeFirstLetter(userData.role);
-    if (sidebarImage) sidebarImage.src = newAvatarUrl;
+    
+    // Add error handler BEFORE setting src
+    if (sidebarImage) {
+        sidebarImage.onerror = function() {
+            this.onerror = null;
+            this.src = '/uploads/profiles/default.jpg';
+        };
+        sidebarImage.src = `${newAvatarUrl}?t=${new Date().getTime()}`;
+    }
 
     // Update mobile header image
     const mobileImage = document.getElementById('mobileProfileImage');
-    if (mobileImage) mobileImage.src = newAvatarUrl;
-
-
-    // Force cache refresh
-    const timestamp = new Date().getTime();
-    [sidebarImage, mobileImage].forEach(img => {
-        if (img) img.src = `${img.src}?t=${timestamp}`;
-    });
+    if (mobileImage) {
+        mobileImage.onerror = function() {
+            this.onerror = null;
+            this.src = '/uploads/profiles/default.jpg';
+        };
+        mobileImage.src = `${newAvatarUrl}?t=${new Date().getTime()}`;
+    }
 }
+
+
 // Setup event listeners
 function setupEventListeners() {
     // Navigation links
