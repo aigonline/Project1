@@ -130,9 +130,9 @@ userSchema.virtual('fullName').get(function() {
 // Virtual property for profile picture URL
 userSchema.virtual('profilePictureUrl').get(function() {
   if (this.profilePicture && this.profilePicture !== 'default.jpg') {
-    return `/uploads/profiles/${this.profilePicture}`;
+    return `/uploads/profile/${this.profilePicture}`;
   }
-  return '/uploads/profiles/default.jpg';
+  return '/uploads/profile/default.jpg';
 });
 // Encrypt password before saving
 userSchema.pre('save', async function(next) {

@@ -330,7 +330,7 @@ function updateUserInfo(userData = window.currentUser) {
     if (sidebarImage) {
         sidebarImage.onerror = function() {
             this.onerror = null;
-            this.src = '/uploads/profiles/default.jpg';
+            this.src = '/uploads/profile/default.jpg';
         };
         sidebarImage.src = `${newAvatarUrl}?t=${new Date().getTime()}`;
     }
@@ -340,7 +340,7 @@ function updateUserInfo(userData = window.currentUser) {
     if (mobileImage) {
         mobileImage.onerror = function() {
             this.onerror = null;
-            this.src = '/uploads/profiles/default.jpg';
+            this.src = '/uploads/profile/default.jpg';
         };
         mobileImage.src = `${newAvatarUrl}?t=${new Date().getTime()}`;
     }

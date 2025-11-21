@@ -120,7 +120,7 @@ function generateCalendarDays(events = []) {
 // Get profile image URL
 function getProfileImageUrl(user) {
     // Return default if no user
-    if (!user) return '/uploads/profiles/default.jpg';
+    if (!user) return '/uploads/profile/default.jpg';
     
     // Check if user has a custom profile picture
     if (user.profilePicture && user.profilePicture !== 'default.jpg') {
@@ -130,11 +130,11 @@ function getProfileImageUrl(user) {
         }
         
         // For uploaded files, use the profiles directory
-        return `/uploads/profiles/${user.profilePicture}`;
+        return `/uploads/profile/${user.profilePicture}`;
     }
     
     // Return default profile image
-    return '/uploads/profiles/default.jpg';
+    return '/uploads/profile/default.jpg';
 }
 
 // Capitalize first letter
