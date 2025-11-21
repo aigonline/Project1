@@ -1513,7 +1513,8 @@ async function loadCourseDetail(courseId) {
                             <div>
                                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Instructor</h3>
                                 <div class="flex items-center mt-1">
-                                    <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor.firstName}" class="w-8 h-8 rounded-full mr-3">
+                                    <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor.firstName}" class="w-8 h-8 rounded-full mr-3"
+                                    onerror="this.onerror=null; this.src='/uploads/profiles/default.jpg';">
                                     <div>
                                         <p class="font-medium">${course.instructor.firstName} ${course.instructor.lastName}</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400">${course.instructor.email}</p>
@@ -4282,7 +4283,8 @@ async function loadResourceDetail(resourceId, activeTab = 'info') {
                                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">${courseCode}</p>
                                 
                                 <div class="flex items-center mb-4">
-                                    <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor?.firstName || 'Instructor'}" class="w-6 h-6 rounded-full mr-2">
+                                    <img src="${getProfileImageUrl(course.instructor)}" alt="${course.instructor?.firstName || 'Instructor'}" class="w-6 h-6 rounded-full mr-2"
+                                    onerror="this.onerror=null; this.src='/uploads/profiles/default.jpg';">
                                     <span class="text-sm">${course.instructor?.firstName || ''} ${course.instructor?.lastName || ''}</span>
                                 </div>
                                 
