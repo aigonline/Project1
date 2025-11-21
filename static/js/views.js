@@ -543,8 +543,8 @@ async function loadDashboard() {
         <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-750 transition cursor-pointer bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-900/30"
             onclick="loadView('course-detail', {courseId: '${course._id}'})">
             <div class="flex items-center mb-1">
-                <img src="${getProfileImageUrl(user)}" alt="Instructor" class="w-10 h-10 rounded-full mr-3"
-                onerror="this.onerror=null; this.src='/uploads/profiles/default.jpg';">
+                <img src="${getProfileImageUrl(announcement.author)}" alt="Instructor" class="w-10 h-10 rounded-full mr-3"
+                onerror="this.onerror=null; this.src='/uploads/profile/default.jpg';">
                 <div>
                     <p class="text-gray-500 dark:text-gray-400 font-normal text-sm">
                         ${announcement.author.firstName} ${announcement.author.lastName} • ${formatTimeAgo(announcement.createdAt)}
