@@ -67,12 +67,21 @@ app.use("/api", limiter);
 app.use(express.json({ limit: "800kb" }));
 app.use(mongoSanitize());
 
-// ✅ Serve static files correctly
+
 // ✅ Serve static files correctly
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/static", express.static(path.join(__dirname, "static")));
 
-// ✅ Serve uploaded files (add this!)
+// ✅ Add CORS headers specifically for uploaded files (BEFORE serving static files)
+app.use('/uploads', (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+});
+
+//  Serve uploaded files 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ✅ Route mounting
