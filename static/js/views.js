@@ -1289,7 +1289,8 @@ async function loadCourseDetail(courseId) {
                 ${courseAnnouncements.map(announcement => `
                   <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
                     <div class="flex">
-                      <img src="${getProfileImageUrl(announcement.author)}" alt="Instructor" class="w-10 h-10 rounded-full mr-3">
+                      <img src="${getProfileImageUrl(announcement.author)}" alt="Instructor" class="w-10 h-10 rounded-full mr-3"
+                      onerror="this.onerror=null; this.src='/uploads/profiles/default.jpg';">
                       <div>
                         <p class="font-medium">${announcement.author.firstName} ${announcement.author.lastName} <span class="text-gray-500 dark:text-gray-400 font-normal text-sm">• ${formatTimeAgo(announcement.createdAt)}</span></p>
                         <p class="text-sm font-semibold text-black-500 dark:text-black-400">${announcement.title}</p>
