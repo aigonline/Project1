@@ -7205,13 +7205,7 @@ async function loadSettings() {
         const languages = [
             { code: 'en', region: 'US', name: 'English (United States)' },
             { code: 'en', region: 'GB', name: 'English (United Kingdom)' },
-            { code: 'fr', region: 'FR', name: 'Français (France)' },
-            { code: 'es', region: 'ES', name: 'Español (España)' },
-            { code: 'de', region: 'DE', name: 'Deutsch (Deutschland)' },
-            { code: 'ha', region: 'NG', name: 'Hausa (Nigeria)' },
-            { code: 'ar', region: 'SA', name: 'العربية (السعودية)' },
-            { code: 'zh', region: 'CN', name: '中文 (中国)' },
-            { code: 'ja', region: 'JP', name: '日本語 (日本)' }
+            { code: 'ha', region: 'NG', name: 'Hausa (Nigeria)' }
         ];
 
         // Build the settings page
@@ -7407,8 +7401,7 @@ async function loadSettings() {
                                                 <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-200">
                                                     <p>
                                                         Hausa language is currently in beta. Some parts of the interface may still appear in English.
-                                                        <br><br>
-                                                        <span dir="rtl" class="block">Hausa suna da goyon baya na beta. Wasu sassan na iya faruwa a Ingilishi.</span>
+                                                        <br><br
                                                     </p>
                                                 </div>
                                             </div>

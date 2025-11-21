@@ -127,6 +127,13 @@ userSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
 });
 
+// Virtual property for profile picture URL
+userSchema.virtual('profilePictureUrl').get(function() {
+  if (this.profilePicture && this.profilePicture !== 'default.jpg') {
+    return `/uploads/profiles/${this.profilePicture}`;
+  }
+  return '/uploads/profiles/default.jpg';
+});
 // Encrypt password before saving
 userSchema.pre('save', async function(next) {
   // Only run if password was modified

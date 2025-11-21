@@ -2216,6 +2216,7 @@ const hausaTranslations = {
     'Announcements': 'Sanarwa',
     'Profile': 'Frofayil',
     'Settings': 'Saiti',
+    'All':' Duka',
     'Logout': 'Fita',
     //Calendar
     'Today': 'Yau',
@@ -2435,6 +2436,7 @@ const hausaTranslations = {
     'Submission': 'An Tura',
     'Allow Late Submissions': 'Ana Iya Tura Wa Latti',
     'Grade': 'Maki',
+    'Active':'Sabbi',
     'Points': 'Maki Ake Iya Ci',
     'Submission Type': 'Nau\'in Tura Wa',
     'late submissions Allowed': 'Ana Iya Tura Wa Latti',
@@ -2550,9 +2552,9 @@ const hausaTranslations = {
     'Date & Time Format': 'Tsarin Kwanan Wata & Lokaci',
     'Date Format': 'Tsarin Kwanan Wata',
     'Time Format': 'Tsarin Lokaci',
-    'Hausa Language Support': 'Goyon Bayan Yaren Hausa',
-    'Hausa language is currently in beta': 'Yaren Hausa yana cikin beta yanzu',
-    'Some parts of the interface may still appear in English': 'Wasu sassan na iya faruwa a Ingilishi'
+    'Hausa Language Support': 'Yaren Hausa',
+    'Hausa language is currently in beta': 'Yaren Hausa yana kan gwaji a halin yanzu',
+    'Some parts of the interface may still appear in English': 'Wasu sassan na iya bayyana a turanci'
 };
 
 /**
